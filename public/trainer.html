@@ -180,9 +180,20 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Change the trainer password before the first real session. Use at least 8 characters.</p>
+  <h1>Account</h1><p class="sub">Your name on the dashboard, and the trainer password.</p>
   <div class="block" style="max-width:520px">
-    <label for="aOld" style="margin-top:0">Current password</label><input id="aOld" type="password" autocomplete="current-password">
+    <h2>Display name</h2>
+    <p class="small muted">Shown at the top right of the dashboard.</p>
+    <form onsubmit="event.preventDefault(); changeName()">
+      <label for="aName">Name</label><input id="aName" maxlength="60" autocomplete="name" required>
+      <button style="margin-top:16px">Save name</button>
+    </form>
+    <div id="nm"></div>
+  </div>
+  <div class="block" style="max-width:520px">
+    <h2>Password</h2>
+    <p class="small muted">Change it before the first real session. Use at least 8 characters.</p>
+    <label for="aOld">Current password</label><input id="aOld" type="password" autocomplete="current-password">
     <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
     <div id="am"></div>
@@ -345,6 +356,12 @@ async function loadReport() {
 }
 
 // ---- account ----
+async function changeName() {
+  try {
+    const r = await api('/api/me/name', { body: { name: $('#aName').value } });
+    $('#who').textContent = r.name; $('#nm').innerHTML = ''; toast('Name saved');
+  } catch (e) { $('#nm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
 async function changePw() {
   try { await api('/api/me/password', { body: { oldPassword: $('#aOld').value, newPassword: $('#aNew').value } });
     $('#am').innerHTML = ''; $('#aOld').value = $('#aNew').value = ''; toast('Password changed'); }
@@ -353,7 +370,7 @@ async function changePw() {
 
 (async () => {
   const me = await requireLogin('trainer'); if (!me) return;
-  $('#who').textContent = me.name; $('#eDate').value = today(); $('#rDate').value = today();
+  $('#who').textContent = me.name; $('#aName').value = me.name; $('#eDate').value = today(); $('#rDate').value = today();
   loadEvents();
 })();
 </script>

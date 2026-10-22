@@ -102,6 +102,8 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(rep.checked_in === 3, `daily report: ${rep.checked_in} checked in, ${rep.missing} absent, ${rep.blocked_attempts} blocked`);
   const csv = await T(`/api/events/${ev.id}/report.csv`);
   ok(typeof csv.body === 'string' && csv.body.includes('S001') && csv.body.includes('absent') && csv.body.includes('@example.com'), 'CSV export has present and absent rows with email');
+  ok((await T('/api/me/name', { name: 'Ms Tan (Trainer)' })).body.name === 'Ms Tan (Trainer)' && (await T('/api/me')).body.name === 'Ms Tan (Trainer)', 'trainer changes display name');
+  ok((await T('/api/me/name', { name: '   ' })).status === 400, 'blank display name rejected');
   ok((await T('/api/me/password', { oldPassword: 'admin123', newPassword: 'short' })).status === 400, 'trainer password must be 8+ characters');
   ok((await T('/api/me/password', { oldPassword: 'admin123', newPassword: 'Bootcamp2026!' })).status === 200, 'trainer password changed');
 

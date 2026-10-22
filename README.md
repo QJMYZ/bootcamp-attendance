@@ -82,7 +82,7 @@ npm start         # http://localhost:3000, login admin / admin123
 
 ## Settings (environment variables)
 
-`DATABASE_URL` (PostgreSQL, enables online mode), `ADMIN_PASSWORD` (first trainer password), `PORT` (3000), `PUBLIC_URL` (force the address in the QR), `TZ_NAME` (Asia/Singapore), `DB_FILE` (SQLite path).
+`DATABASE_URL` (PostgreSQL, enables online mode), `ADMIN_PASSWORD` (first trainer password), `ADMIN_NAME` (first trainer display name, can be changed later in the Account tab), `PORT` (3000), `PUBLIC_URL` (force the address in the QR), `TZ_NAME` (Asia/Singapore), `DB_FILE` (SQLite path).
 
 ## Tests
 

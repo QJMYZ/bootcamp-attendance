@@ -91,7 +91,7 @@ async function init() {
   // Always have a trainer account. On a hosted site, set ADMIN_PASSWORD so the default is never public.
   if (!(await get("SELECT 1 AS x FROM users WHERE role='trainer'"))) {
     const pw = process.env.ADMIN_PASSWORD || 'admin123';
-    await createUser({ username: 'admin', name: 'Admin Trainer', role: 'trainer', password: pw });
+    await createUser({ username: 'admin', name: process.env.ADMIN_NAME || 'Admin Trainer', role: 'trainer', password: pw });
     console.log(process.env.ADMIN_PASSWORD ? 'Created trainer login "admin" with ADMIN_PASSWORD'
       : 'Created default trainer login  admin / admin123  (change it after first login)');
   }

@@ -109,6 +109,13 @@ app.post('/api/logout', h(async (req, res) => {
   res.json({ ok: true });
 }));
 app.get('/api/me', auth(), (req, res) => res.json(req.user));
+// Change the name shown at the top right of the dashboard
+app.post('/api/me/name', auth('trainer'), h(async (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!name || name.length > 60) return res.status(400).json({ error: 'Enter a display name of up to 60 characters' });
+  await run('UPDATE users SET name=? WHERE id=?', [name, req.user.id]);
+  res.json({ ok: true, name });
+}));
 app.post('/api/me/password', auth(), h(async (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   const u = await get('SELECT * FROM users WHERE id=?', [req.user.id]);

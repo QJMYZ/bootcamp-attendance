@@ -73,7 +73,7 @@ function problem(title, text) {
 }
 async function load() {
   try { data = await api(`/api/checkin/names?e=${eventId}&t=${encodeURIComponent(token || '')}`); }
-  catch (e) { return problem("This QR code didn't work", 'Scan the code on the screen in class again. If it still fails, tell the trainer.'); }
+  catch (e) { return problem("This QR code didn't work", 'Scan the code again.'); }
   if (!data.today) return problem(data.event, `This session is on ${fmtDate(data.date)}. Scan the QR code on the day.`);
   const last = remembered();
   if (last && data.names.some(n => String(n.id) === last && !n.checked_in)) chosen = last;

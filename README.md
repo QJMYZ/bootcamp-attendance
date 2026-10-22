@@ -84,7 +84,7 @@ npm start         # http://localhost:3000, login admin / admin123
 
 ## Settings (environment variables)
 
-`DATABASE_URL` (PostgreSQL, enables online mode), `ADMIN_PASSWORD` (first trainer password), `ADMIN_NAME` (first trainer display name, can be changed later in the Account tab), `PORT` (3000), `PUBLIC_URL` (force the address in the QR), `TZ_NAME` (Asia/Singapore), `DB_FILE` (SQLite path).
+`DATABASE_URL` (PostgreSQL, enables online mode), `ADMIN_PASSWORD` (first trainer password), `ADMIN_NAME` (first trainer display name, can be changed later in the Account tab), `PORT` (3000), `PUBLIC_URL` (force the address in the QR), `TZ_NAME` (Asia/Singapore, only the default for sessions; each session picks its own time zone in the Sessions tab), `DB_FILE` (SQLite path).
 
 ## Tests
 
@@ -93,3 +93,7 @@ npm start         # http://localhost:3000, login admin / admin123
 ## Files
 
 `server.js` API and anti-cheat logic, `db.js` database (PostgreSQL or SQLite), `public/` pages, `seed.js` demo data, `test.js` tests, `render.yaml` hosting setup.
+
+## Time zones
+
+Each session has its own time zone, chosen in the session form (for example Vietnam, GMT+7). The start time, the on-time or late check, the "is it today" check, the times on students' phones, the live dashboard and the CSV all use that zone. It does not matter what time zone the server, your laptop or a student's phone is set to. Sessions made before this feature use the server default (`TZ_NAME`, Singapore if not set). To change a session's zone later, press Edit on the session; check-ins are re-marked on time or late using the new zone.

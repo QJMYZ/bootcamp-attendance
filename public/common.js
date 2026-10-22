@@ -12,7 +12,21 @@ async function api(url, opts = {}) {
 }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmtTime = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+// Times are shown in the session's own time zone when one is given (e.g. a Vietnam session viewed from Singapore)
+const fmtTime = (iso, tz) => { try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz || undefined }); }
+  catch { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); } };
+// Regions offered when creating a session. Any other IANA zone the browser knows also works.
+const TIMEZONES = [
+  ['Asia/Singapore', 'Singapore'], ['Asia/Ho_Chi_Minh', 'Vietnam'], ['Asia/Kuala_Lumpur', 'Malaysia'],
+  ['Asia/Bangkok', 'Thailand'], ['Asia/Jakarta', 'Indonesia (Jakarta)'], ['Asia/Makassar', 'Indonesia (Bali, Makassar)'],
+  ['Asia/Manila', 'Philippines'], ['Asia/Yangon', 'Myanmar'], ['Asia/Phnom_Penh', 'Cambodia'], ['Asia/Vientiane', 'Laos'],
+  ['Asia/Brunei', 'Brunei'], ['Asia/Taipei', 'Taiwan'], ['Asia/Hong_Kong', 'Hong Kong'], ['Asia/Shanghai', 'China'],
+  ['Asia/Tokyo', 'Japan'], ['Asia/Seoul', 'South Korea'], ['Asia/Kolkata', 'India'], ['Asia/Dubai', 'UAE'],
+  ['Australia/Sydney', 'Australia (Sydney)'], ['Europe/London', 'United Kingdom'], ['Europe/Berlin', 'Germany'],
+  ['America/Los_Angeles', 'USA (Pacific)'], ['America/New_York', 'USA (Eastern)'], ['UTC', 'UTC']];
+const tzOffsetLabel = tz => { try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(new Date()).find(p => p.type === 'timeZoneName').value; } catch { return ''; } };
+const tzName = tz => (TIMEZONES.find(z => z[0] === tz) || [tz, String(tz || '').split('/').pop().replace(/_/g, ' ')])[1];
+const tzLabel = (tz, off) => `${tzName(tz)} time (${off || tzOffsetLabel(tz)})`;
 const today = () => new Date().toLocaleDateString('en-CA');
 const fmtDate = ymd => new Date(ymd + 'T00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 async function requireLogin(role) {

@@ -144,6 +144,29 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(after.checkins.some(c => c.status === 'manual'), 'trainer-marked check-ins are left alone');
   await T(`/api/events/${ev.id}/update`, { start_time: '09:00', late_after_min: 15 });
 
+  // Per-session time zone (e.g. a bootcamp in Vietnam, server in Singapore)
+  const inTz = tz => { const d = new Date(); return { date: d.toLocaleDateString('en-CA', { timeZone: tz }), time: d.toLocaleTimeString('en-GB', { timeZone: tz, hour12: false }).slice(0, 5) }; };
+  ok((await T('/api/events', { name: 'Bad zone', date: '2099-01-01', start_time: '09:00', timezone: 'Mars/Olympus' })).status === 400, 'unknown time zone rejected');
+  const vn = inTz('Asia/Ho_Chi_Minh');
+  const vnId = (await T('/api/events', { name: 'Hanoi Day', date: vn.date, start_time: vn.time, late_after_min: 0, register_all: true, timezone: 'Asia/Ho_Chi_Minh' })).body.id;
+  await T(`/api/events/${vnId}/open`, { open: true });
+  const vnTok = new URL((await T(`/api/events/${vnId}/qr`)).body.url).searchParams.get('t');
+  const vnList = (await C()(`/api/checkin/names?e=${vnId}&t=${vnTok}`)).body;
+  ok(vnList.timezone === 'Asia/Ho_Chi_Minh' && vnList.tz_offset === 'GMT+7' && vnList.today, `phone gets the session zone (${vnList.tz_offset}) and "today" uses it`);
+  const vnR = (await C()('/api/checkin', { eventId: vnId, token: vnTok, studentId: vnList.names[0].id })).body;
+  ok(vnR.status === 'present' && vnR.time === vn.time, `check-in at ${vn.time} Vietnam time is on time for a ${vn.time} Vietnam start`);
+  const vnSum = (await T(`/api/events/${vnId}/summary`)).body.event;
+  ok(vnSum.timezone === 'Asia/Ho_Chi_Minh' && vnSum.now_local === vn.time, 'live dashboard shows the time in Vietnam');
+  const tk = (await T(`/api/events/${vnId}/update`, { start_time: vn.time, late_after_min: 0, timezone: 'Asia/Tokyo' })).body;
+  ok(tk.ok && tk.changed === 1 && (await T(`/api/events/${vnId}/summary`)).body.checkins[0].status === 'late', 'switching the zone to Japan (2 h ahead) re-marks that check-in late');
+  await T(`/api/events/${vnId}/update`, { timezone: 'Asia/Ho_Chi_Minh' });
+  ok((await T(`/api/events/${vnId}/summary`)).body.checkins[0].status === 'present', 'switching back to Vietnam makes it on time again');
+  const csvVn = (await T(`/api/events/${vnId}/report.csv`)).body;
+  ok(String(csvVn).includes('Asia/Ho_Chi_Minh, GMT+7'), 'CSV says which time zone the times are in');
+  const old = (await T('/api/events')).body.find(e => e.id === ev.id);
+  ok(old.timezone === 'Asia/Singapore', 'sessions without a zone use the server default (Singapore)');
+  await T(`/api/events/${vnId}`, null, 'DELETE');
+
   // Multiple trainer accounts
   ok((await T('/api/trainers', { username: 'ms.tan', name: 'Ms Tan', password: 'TanPass2026' })).body.ok, 'add a second trainer');
   ok((await T('/api/trainers', { username: 'MS.TAN', name: 'Dup', password: 'whatever123' })).status === 409, 'duplicate trainer username rejected');

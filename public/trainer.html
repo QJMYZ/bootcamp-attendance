@@ -165,8 +165,9 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
       <div><label for="eDate">Date</label><input id="eDate" type="date"></div>
       <div><label for="eStart">Starts at</label><input id="eStart" type="time" required></div>
       <div><label for="eLate">Late after (minutes)</label><input id="eLate" type="number" min="0" value="15"></div>
+      <div style="flex-basis:240px"><label for="eTz">Time zone (where the session runs)</label><select id="eTz"></select></div>
     </div>
-    <p class="small muted" style="margin:8px 0 0">Students who check in more than the "late after" minutes past the start time are marked late.</p>
+    <p class="small muted" style="margin:8px 0 0">Students who check in more than the "late after" minutes past the start time are marked late. The start time and late check use the time zone you choose, whatever time zone a student's phone or your laptop is set to. <span id="tzNow"></span></p>
     <label class="check" id="eAllRow"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
     <button id="eSave" onclick="saveSession()" style="margin-top:14px">Create session</button>
     <button id="eCancel" class="btn-quiet hidden" onclick="cancelEdit()" style="margin-top:14px">Cancel</button>
@@ -278,7 +279,7 @@ async function loadEvents() {
   $('#evActions').classList.toggle('hidden', !events.length);
   $('#evList').innerHTML = events.length ? `<div class="block table"><table>
     <tr><th>Session</th><th>Date</th><th>Starts</th><th class="num">On list</th><th class="num">Checked in</th><th>Check-in</th><th></th></tr>
-    ${events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${fmtDate(e.date)}</td><td>${e.start_time}</td>
+    ${events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${fmtDate(e.date)}</td><td>${e.start_time} <span class="small muted">${esc(tzName(e.timezone))} ${esc(e.tz_offset)}</span></td>
     <td class="num">${e.registered}</td><td class="num">${e.checked_in}</td>
     <td>${e.checkin_open ? '<span class="chip open">Open</span>' : '<span class="chip">Closed</span>'}</td>
     <td class="right"><button class="link" onclick="openLive(${e.id})">View live</button>
@@ -292,7 +293,8 @@ function openLive(id) { $('#evSel').value = id; selectEvent(String(id)); showTab
 let editingId = null;
 async function saveSession() {
   if (!$('#eStart').value) { $('#em').innerHTML = '<div class="msg err">Choose the time the session starts</div>'; return; }
-  const body = { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value, late_after_min: $('#eLate').value };
+  const body = { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value, late_after_min: $('#eLate').value, timezone: $('#eTz').value };
+  try { localStorage.setItem('att_tz', $('#eTz').value); } catch {}
   try {
     if (editingId) {
       const r = await api(`/api/events/${editingId}/update`, { body });
@@ -309,13 +311,14 @@ function editSession(id) {
   const e = events.find(x => x.id === id); if (!e) return;
   editingId = id;
   $('#eName').value = e.name; $('#eDate').value = e.date; $('#eStart').value = e.start_time; $('#eLate').value = e.late_after_min;
+  setTz(e.timezone);
   $('#eTitle').textContent = `Edit "${e.name}"`; $('#eSave').textContent = 'Save changes';
   $('#eCancel').classList.remove('hidden'); $('#eAllRow').classList.add('hidden'); $('#em').innerHTML = '';
   $('#eTitle').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#eStart').focus();
 }
 function cancelEdit() {
   editingId = null;
-  $('#eName').value = ''; $('#eStart').value = ''; $('#eLate').value = 15; $('#eDate').value = today();
+  $('#eName').value = ''; $('#eStart').value = ''; $('#eLate').value = 15; $('#eDate').value = today(); setTz(defaultTz());
   $('#eTitle').textContent = 'New session'; $('#eSave').textContent = 'Create session';
   $('#eCancel').classList.add('hidden'); $('#eAllRow').classList.remove('hidden'); $('#em').innerHTML = '';
 }
@@ -339,18 +342,33 @@ function selectEvent(id) {
 setInterval(() => { if (current && !document.hidden && !$('#tab-live').classList.contains('hidden')) refreshLive(); }, 5000);
 // Keep the student list fresh too, in case another trainer adds or removes students
 setInterval(() => { if (!document.hidden && !$('#tab-students').classList.contains('hidden')) loadStudents(); }, 10000);
-let pending = null;
+let pending = null, tzLive;
+// Time zone picker: remembers the last zone used, otherwise the laptop's own zone
+const defaultTz = () => { let z; try { z = localStorage.getItem('att_tz'); } catch {} return z || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Singapore'; };
+function setTz(tz) {
+  const sel = $('#eTz');
+  if (tz && !TIMEZONES.some(z => z[0] === tz) && !sel.querySelector(`option[value="${CSS.escape(tz)}"]`)) sel.add(new Option(`${tzName(tz)} (${tzOffsetLabel(tz)})`, tz), 0);
+  sel.value = tz && [...sel.options].some(o => o.value === tz) ? tz : 'Asia/Singapore';
+  showTzNow();
+}
+function showTzNow() {
+  const tz = $('#eTz').value;
+  try { $('#tzNow').textContent = `It is ${new Date().toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' })} in ${tzName(tz)} now.`; } catch { $('#tzNow').textContent = ''; }
+}
+$('#eTz').innerHTML = TIMEZONES.map(([v, n]) => `<option value="${v}">${esc(n)} (${tzOffsetLabel(v)})</option>`).join('');
+$('#eTz').onchange = showTzNow; setTz(defaultTz()); setInterval(showTzNow, 30000);
 function refreshLive() { clearTimeout(pending); pending = setTimeout(drawLive, 150); }
 async function drawLive() {
   const s = await api(`/api/events/${current}/summary`), t = s.totals, ev = s.event;
   lastSummary = s;
-  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
+  tzLive = ev.timezone;
+  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min. ${esc(tzLabel(ev.timezone, ev.tz_offset))}, now ${esc(ev.now_local)} <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
     ${ev.checkin_open ? '<span class="chip open">Check-in open</span>' : '<span class="chip">Check-in closed</span>'}`;
   $('#openBtn').innerHTML = ev.checkin_open ? `${ICONS.lock}Close check-in` : `${ICONS.unlock}Open check-in`;
   $('#openBtn').className = ev.checkin_open ? 'btn-stop' : '';
   const last = s.checkins[0];
   $('#strip').innerHTML = [[`${t.checked_in} / ${s.registered}`, 'Checked in'], [`${t.rate}%`, 'Attendance so far'],
-    [t.late, 'Late'], [last ? fmtTime(last.ts) : 'None yet', 'Last check-in']]
+    [t.late, 'Late'], [last ? fmtTime(last.ts, tzLive) : 'None yet', 'Last check-in']]
     .map(([v, l]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('');
 
   // overview ring: how many are checked in, split by on time / late / marked
@@ -364,14 +382,14 @@ async function drawLive() {
     <td class="right"><button class="link" onclick="manual(${m.user_id}, '${esc(m.name).replace(/'/g, '&#39;')}')">Mark present</button></td></tr>`).join('')}</table>`
     : `<p class="empty">${s.registered ? 'Everyone on the list is here.' : 'No students on this session yet. Add them in the Students tab and they join this session automatically.'}</p>`;
   $('#feedN').textContent = t.checked_in;
-  $('#feed').innerHTML = s.checkins.length ? `<table>${s.checkins.map(c => `<tr><td style="width:56px" class="id">${fmtTime(c.ts)}</td>
+  $('#feed').innerHTML = s.checkins.length ? `<table>${s.checkins.map(c => `<tr><td style="width:56px" class="id">${fmtTime(c.ts, tzLive)}</td>
     <td><div class="person">${avatar(c.name)}<div><b>${esc(c.name)}</b><div class="id">${esc(c.username)}${c.flagged ? `, ${esc(c.flag_reason)}` : ''}</div></div></div></td>
     <td><span class="chip ${c.status}">${c.status === 'manual' ? 'Marked' : c.status === 'late' ? 'Late' : 'On time'}</span></td>
     <td class="right"><button class="link" onclick="undo(${c.user_id}, '${esc(c.name).replace(/'/g, '&#39;')}')" title="Remove this check-in, e.g. wrong name picked">Undo</button></td></tr>`).join('')}</table>`
     : `<p class="empty">${ev.checkin_open ? 'Waiting for the first scan.' : 'Open check-in and show the QR screen to start.'}</p>`;
   $('#susN').textContent = s.suspicious.length;
   $('#sus').innerHTML = s.suspicious.length ? `<table><tr><th>Time</th><th>Name chosen</th><th>Reason</th></tr>${s.suspicious.map(x =>
-    `<tr><td class="id">${fmtTime(x.ts)}</td><td>${esc(x.name || '')} <span class="id">${esc(x.username || '')}</span></td><td>${esc(x.reason)}</td></tr>`).join('')}</table>`
+    `<tr><td class="id">${fmtTime(x.ts, tzLive)}</td><td>${esc(x.name || '')} <span class="id">${esc(x.username || '')}</span></td><td>${esc(x.reason)}</td></tr>`).join('')}</table>`
     : '<p class="empty">Nothing blocked so far.</p>';
 }
 async function toggleOpen() {

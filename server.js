@@ -23,8 +23,16 @@ const h = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(ne
 
 // ---------- helpers ----------
 const nowIso = () => new Date().toISOString();
-const localDate = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: TZ });
-const localTime = (d = new Date()) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hour12: false }).slice(0, 5);
+// Every session has its own time zone (e.g. Vietnam). Times are worked out in that zone, wherever the server runs.
+const localDate = (d = new Date(), tz = TZ) => d.toLocaleDateString('en-CA', { timeZone: tz });
+const localTime = (d = new Date(), tz = TZ) => d.toLocaleTimeString('en-GB', { timeZone: tz, hour12: false }).slice(0, 5);
+const validTz = tz => { try { if (!tz) return null; new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch { return null; } };
+const tzOf = ev => validTz(ev && ev.timezone) || TZ;
+const tzOffset = (tz, d = new Date()) => {   // e.g. "GMT+7"
+  try { return new Intl.DateTimeFormat('en-GB', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(d).find(p => p.type === 'timeZoneName').value; }
+  catch { return ''; }
+};
+const tzInfo = ev => { const tz = tzOf(ev); return { timezone: tz, tz_offset: tzOffset(tz), now_local: localTime(new Date(), tz) }; };
 const toMin = hhmm => { const [hh, mm] = hhmm.split(':').map(Number); return hh * 60 + mm; };
 const num = v => Number(v);
 
@@ -220,17 +228,18 @@ const REG_ALL = `INSERT INTO registrations (event_id,user_id) SELECT CAST(? AS I
 
 app.get('/api/events', auth('trainer'), h(async (req, res) => {
   const rows = await all(`
-    SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,
+    SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,e.timezone,
       CAST((${ON_LIST('e.id')}) AS INTEGER) AS registered,
       CAST((SELECT COUNT(*) FROM checkins c WHERE c.event_id=e.id) AS INTEGER) AS checked_in
     FROM events e ORDER BY e.date DESC, e.start_time DESC`);
-  res.json(rows);
+  res.json(rows.map(e => ({ ...e, ...tzInfo(e) })));
 }));
 app.post('/api/events', auth('trainer'), h(async (req, res) => {
-  const { name, date, start_time, late_after_min = 15, register_all } = req.body || {};
+  const { name, date, start_time, late_after_min = 15, register_all, timezone } = req.body || {};
   if (!name || !date || !start_time) return res.status(400).json({ error: 'Name, date and start time are required' });
-  const r = await run(`INSERT INTO events (name,date,start_time,late_after_min,secret)
-    VALUES (?,?,?,?,?) RETURNING id`, [name, date, start_time, num(late_after_min) || 0, crypto.randomBytes(32).toString('hex')]);
+  if (timezone && !validTz(timezone)) return res.status(400).json({ error: 'Choose a time zone from the list' });
+  const r = await run(`INSERT INTO events (name,date,start_time,late_after_min,secret,timezone)
+    VALUES (?,?,?,?,?,?) RETURNING id`, [name, date, start_time, num(late_after_min) || 0, crypto.randomBytes(32).toString('hex'), validTz(timezone) || TZ]);
   const id = r.rows[0].id;
   if (register_all) await run(REG_ALL, [id]);
   res.json({ id });
@@ -242,10 +251,12 @@ app.post('/api/events/:id/update', auth('trainer'), h(async (req, res) => {
   const name = String(req.body?.name ?? ev.name).trim(), date = String(req.body?.date ?? ev.date);
   const start_time = String(req.body?.start_time ?? ev.start_time), late = num(req.body?.late_after_min ?? ev.late_after_min) || 0;
   if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start_time)) return res.status(400).json({ error: 'Name, date and start time are required' });
-  await run('UPDATE events SET name=?,date=?,start_time=?,late_after_min=? WHERE id=?', [name, date, start_time, late, ev.id]);
+  if (req.body?.timezone && !validTz(req.body.timezone)) return res.status(400).json({ error: 'Choose a time zone from the list' });
+  const tz = validTz(req.body?.timezone) || tzOf(ev);
+  await run('UPDATE events SET name=?,date=?,start_time=?,late_after_min=?,timezone=? WHERE id=?', [name, date, start_time, late, tz, ev.id]);
   let changed = 0;
   for (const c of await all("SELECT id,ts,status FROM checkins WHERE event_id=? AND status IN ('present','late')", [ev.id])) {
-    const status = toMin(localTime(new Date(c.ts))) > toMin(start_time) + late ? 'late' : 'present';
+    const status = toMin(localTime(new Date(c.ts), tz)) > toMin(start_time) + late ? 'late' : 'present';
     if (status !== c.status) { await run('UPDATE checkins SET status=? WHERE id=?', [status, c.id]); changed++; }
   }
   broadcast(ev.id, { type: 'refresh' });
@@ -272,7 +283,7 @@ app.get('/api/events/:id/qr', auth('trainer'), h(async (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Event not found' });
   const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const url = `${base}/checkin.html?e=${ev.id}&t=${qrToken(ev)}`;
-  res.json({ dataUrl: await QRCode.toDataURL(url, { width: 520, margin: 1 }), url, open: !!ev.checkin_open, name: ev.name, date: ev.date });
+  res.json({ dataUrl: await QRCode.toDataURL(url, { width: 520, margin: 1 }), url, open: !!ev.checkin_open, name: ev.name, date: ev.date, ...tzInfo(ev) });
 }));
 app.post('/api/events/:id/reset-qr', auth('trainer'), h(async (req, res) => {
   await run('UPDATE events SET secret=? WHERE id=?', [crypto.randomBytes(32).toString('hex'), req.params.id]);
@@ -291,7 +302,8 @@ app.get('/api/checkin/names', h(async (req, res) => {
     FROM users u WHERE u.role='student' AND u.active=1
       AND (?=0 OR EXISTS(SELECT 1 FROM registrations r WHERE r.event_id=? AND r.user_id=u.id))
     ORDER BY u.name`, [ev.id, regCount, ev.id]);
-  res.json({ event: ev.name, date: ev.date, open: !!ev.checkin_open, today: ev.date === localDate(), names });
+  res.json({ event: ev.name, date: ev.date, start_time: ev.start_time, open: !!ev.checkin_open,
+    today: ev.date === localDate(new Date(), tzOf(ev)), names, ...tzInfo(ev) });
 }));
 
 app.post('/api/checkin', h(async (req, res) => {
@@ -307,7 +319,8 @@ app.post('/api/checkin', h(async (req, res) => {
     return res.status(code).json({ error: msg });
   };
   if (!ev.checkin_open) return reject('Check-in closed', 'Check-in is not open yet. Wait for the trainer to open it.');
-  if (ev.date !== localDate()) return reject('Wrong day', 'This event is not running today.');
+  const tz = tzOf(ev);
+  if (ev.date !== localDate(new Date(), tz)) return reject('Wrong day', 'This event is not running today.');
   if (await get('SELECT 1 AS x FROM checkins WHERE event_id=? AND user_id=?', [ev.id, student.id]))
     return reject('Duplicate', `${student.name} is already checked in.`, 409);
   // One phone checks in one student per event
@@ -320,13 +333,14 @@ app.post('/api/checkin', h(async (req, res) => {
     await run('INSERT INTO registrations (event_id,user_id) VALUES (?,?) ON CONFLICT DO NOTHING', [ev.id, student.id]);
     flagged = 1; flag_reason = 'Walk-in (not registered)';
   }
-  const status = toMin(localTime()) > toMin(ev.start_time) + num(ev.late_after_min || 0) ? 'late' : 'present';
+  const status = toMin(localTime(new Date(), tz)) > toMin(ev.start_time) + num(ev.late_after_min || 0) ? 'late' : 'present';
   const ins = await run(`INSERT INTO checkins (event_id,user_id,ts,status,device_id,ip,user_agent,flagged,flag_reason)
     VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`, [ev.id, student.id, ts, status, req.deviceId, req.ip,
     String(req.get('user-agent') || '').slice(0, 200), flagged, flag_reason]);
   if (!ins.changes) return res.status(409).json({ error: `${student.name} is already checked in.` });  // double-tap
   broadcast(ev.id, { type: 'checkin' });
-  res.json({ ok: true, status, name: student.name, event: ev.name, time: localTime(), start_time: ev.start_time, late_after_min: num(ev.late_after_min || 0) });
+  res.json({ ok: true, status, name: student.name, event: ev.name, time: localTime(new Date(), tz), start_time: ev.start_time,
+    late_after_min: num(ev.late_after_min || 0), ...tzInfo(ev) });
 }));
 
 // Trainer can undo a check-in (e.g. a student picked the wrong name)
@@ -348,8 +362,9 @@ app.post('/api/events/:id/manual', auth('trainer'), h(async (req, res) => {
 
 // ---------- dashboard data ----------
 async function eventSummary(id) {
-  const ev = await get('SELECT id,name,date,start_time,late_after_min,checkin_open FROM events WHERE id=?', [num(id) || 0]);
+  const ev = await get('SELECT id,name,date,start_time,late_after_min,checkin_open,timezone FROM events WHERE id=?', [num(id) || 0]);
   if (!ev) return null;
+  Object.assign(ev, tzInfo(ev));
   const checkins = await all(`SELECT c.ts,c.status,c.flagged,c.flag_reason,u.id AS user_id,u.username,u.name,u.email
     FROM checkins c JOIN users u ON u.id=c.user_id WHERE c.event_id=? ORDER BY c.ts DESC`, [ev.id]);
   // Missing = registered for the event but no check-in yet
@@ -399,8 +414,9 @@ const csvCell = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" 
 app.get('/api/events/:id/report.csv', auth('trainer'), h(async (req, res) => {
   const s = await eventSummary(req.params.id);
   if (!s) return res.status(404).send('Not found');
-  const fmt = iso => new Date(iso).toLocaleString('en-GB', { timeZone: TZ });
-  const lines = [['Student ID', 'Name', 'Email', 'Status', 'Check-in time', 'Flag'].map(csvCell).join(',')];
+  const tz = tzOf(s.event);
+  const fmt = iso => new Date(iso).toLocaleString('en-GB', { timeZone: tz });
+  const lines = [['Student ID', 'Name', 'Email', 'Status', `Check-in time (${tz}, ${tzOffset(tz)})`, 'Flag'].map(csvCell).join(',')];
   [...s.checkins].reverse().forEach(c => lines.push([c.username, c.name, c.email, c.status, fmt(c.ts), c.flag_reason || ''].map(csvCell).join(',')));
   s.missing.forEach(m => lines.push([m.username, m.name, m.email, 'absent', '', ''].map(csvCell).join(',')));
   lines.push('', csvCell('Summary'), ...Object.entries(s.totals).map(([k, v]) => `${csvCell(k)},${csvCell(v)}`));

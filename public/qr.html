@@ -62,7 +62,7 @@ async function refresh() {
   try {
     const [r, s] = await Promise.all([api(`/api/events/${id}/qr`), api(`/api/events/${id}/summary`)]);
     $('#title').textContent = r.name;
-    $('#when').textContent = `${fmtDate(r.date)}, starts ${s.event.start_time}`;
+    $('#when').textContent = `${fmtDate(r.date)}, starts ${s.event.start_time} ${tzLabel(r.timezone, r.tz_offset)}`;
     if (r.url !== lastUrl) { $('#img').src = r.dataUrl; lastUrl = r.url; }
     $('#qrBox').classList.toggle('is-closed', !r.open);
     $('#cnt').textContent = `${s.totals.checked_in} of ${s.registered}`;

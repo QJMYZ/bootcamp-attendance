@@ -60,7 +60,8 @@ async function init() {
     start_time TEXT NOT NULL,             -- HH:MM
     late_after_min INTEGER DEFAULT 15,
     checkin_open INTEGER DEFAULT 0,
-    secret TEXT NOT NULL                  -- per-event key used to sign the event QR token
+    secret TEXT NOT NULL,                 -- per-event key used to sign the event QR token
+    timezone TEXT                         -- where the session runs, e.g. Asia/Ho_Chi_Minh (empty = server default)
   );
   CREATE TABLE IF NOT EXISTS registrations (
     event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -87,6 +88,9 @@ async function init() {
   // Databases created by older versions have no email column yet: add it.
   if (isPg) await exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''");
   else if (!(await all('PRAGMA table_info(users)')).some(c => c.name === 'email')) await exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''");
+  // ...and sessions without a time zone column
+  if (isPg) await exec('ALTER TABLE events ADD COLUMN IF NOT EXISTS timezone TEXT');
+  else if (!(await all('PRAGMA table_info(events)')).some(c => c.name === 'timezone')) await exec('ALTER TABLE events ADD COLUMN timezone TEXT');
 
   // Always have a trainer account. On a hosted site, set ADMIN_PASSWORD so the default is never public.
   if (!(await get("SELECT 1 AS x FROM users WHERE role='trainer'"))) {

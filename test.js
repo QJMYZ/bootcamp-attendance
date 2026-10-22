@@ -104,6 +104,37 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(typeof csv.body === 'string' && csv.body.includes('S001') && csv.body.includes('absent') && csv.body.includes('@example.com'), 'CSV export has present and absent rows with email');
   ok((await T('/api/me/name', { name: 'Ms Tan (Trainer)' })).body.name === 'Ms Tan (Trainer)' && (await T('/api/me')).body.name === 'Ms Tan (Trainer)', 'trainer changes display name');
   ok((await T('/api/me/name', { name: '   ' })).status === 400, 'blank display name rejected');
+  // Large class: no limit on students
+  const big = Array.from({ length: 250 }, (_, i) => ({ username: `BIG${i + 1}`, name: `Big Class Student ${i + 1}`, email: `big${i + 1}@example.com` }));
+  const bigAdd = (await T('/api/students', { rows: big })).body;
+  ok(bigAdd.added === 250 && bigAdd.errors.length === 0, 'add 250 students in one paste');
+  ok((await T('/api/students')).body.filter(x => x.username.startsWith('BIG')).length === 250, 'all 250 appear on the class list');
+  ok((await C()(`/api/checkin/names?e=${ev.id}&t=${newTok}`)).body.names.filter(n => n.username.startsWith('BIG')).length === 250, "all 250 appear on today's check-in name list");
+  ok((await C()('/api/login', { username: 'BIG1', password: '' })).status === 401, 'students still cannot sign in to the dashboard');
+
+  // Student list stays in sync with session lists
+  const future = (await T('/api/events', { name: 'Future Day', date: '2099-02-02', start_time: '09:00', late_after_min: 15, register_all: true })).body.id;
+  const onList = async id => (await T(`/api/events/${id}/summary`)).body;
+  const sync = (await T('/api/students', { rows: [{ username: 'SYNC1', name: 'Sync Student', email: 'sync1@example.com' }] })).body;
+  ok(sync.added === 1 && (await onList(future)).missing.some(m => m.username === 'SYNC1'), 'added student appears on upcoming session automatically');
+  const syncId = (await T('/api/students')).body.find(x => x.username === 'SYNC1').id;
+  const beforeFuture = (await onList(future)).registered, beforeToday = (await onList(ev.id)).registered;
+  await T(`/api/students/${syncId}`, null, 'DELETE');
+  const af = await onList(future), at = await onList(ev.id);
+  ok(!af.missing.some(m => m.username === 'SYNC1') && af.registered === beforeFuture - 1, 'removed student comes off upcoming session and its count drops');
+  ok(!at.missing.some(m => m.username === 'SYNC1') && at.registered === beforeToday - 1, "removed student comes off today's session too");
+  ok(!(await C()(`/api/checkin/names?e=${ev.id}&t=${newTok}`)).body.names.some(n => n.username === 'SYNC1'), 'removed student no longer on the check-in name list');
+  // a student who already checked in keeps their record after being removed
+  const s1 = (await T('/api/students')).body.find(x => x.username === 'S001').id;
+  const keepBefore = (await onList(ev.id)).registered;
+  await T(`/api/students/${s1}`, null, 'DELETE');
+  const keep = await onList(ev.id);
+  ok(keep.checkins.some(c => c.username === 'S001') && keep.registered === keepBefore, 'removed student who already checked in keeps their attendance record');
+  // re-adding brings them back onto upcoming sessions
+  await T('/api/students', { rows: [{ username: 'SYNC1', name: 'Sync Student', email: 'sync1@example.com' }] });
+  ok((await onList(future)).missing.some(m => m.username === 'SYNC1'), 're-added student is back on upcoming session');
+  await T('/api/students', { rows: [{ username: 'S001', name: 'Tan Wei Ming', email: 'tan.wei.ming@example.com' }] });
+
   // Multiple trainer accounts
   ok((await T('/api/trainers', { username: 'ms.tan', name: 'Ms Tan', password: 'TanPass2026' })).body.ok, 'add a second trainer');
   ok((await T('/api/trainers', { username: 'MS.TAN', name: 'Dup', password: 'whatever123' })).status === 409, 'duplicate trainer username rejected');

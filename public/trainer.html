@@ -148,7 +148,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 
 <!-- STUDENTS -->
 <section id="tab-students" class="hidden">
-  <h1>Students</h1><p class="sub">These names appear on the check-in page after a student scans the QR.</p>
+  <h1>Students</h1><p class="sub">Everyone on this list appears on the check-in page. Adding or removing a student updates every session from today onwards.</p>
   <div class="block">
     <h2>Add a student</h2>
     <form class="fields" onsubmit="event.preventDefault(); addOne()">
@@ -164,7 +164,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
     </details>
     <div id="sm"></div>
   </div>
-  <h2 style="margin-bottom:8px">Class list <small class="muted" id="stuN" style="font:600 15px var(--text)"></small></h2>
+  <h2 style="margin-bottom:8px">Student list <small class="muted" id="stuN" style="font:600 15px var(--text)"></small></h2>
   <div id="stuList"></div>
 </section>
 
@@ -228,6 +228,7 @@ function showTab(name) {
   if (name === 'reports') loadReport();
   if (name === 'account') loadTrainers();
   if (name === 'events' || name === 'live') loadEvents();
+  if (name === 'live' && current) refreshLive();   // show fresh numbers straight away
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
@@ -278,6 +279,8 @@ function selectEvent(id) {
 }
 // Backup: refresh every 5 s anyway, in case a proxy or host blocks the live stream
 setInterval(() => { if (current && !document.hidden && !$('#tab-live').classList.contains('hidden')) refreshLive(); }, 5000);
+// Keep the student list fresh too, in case another trainer adds or removes students
+setInterval(() => { if (!document.hidden && !$('#tab-students').classList.contains('hidden')) loadStudents(); }, 10000);
 let pending = null;
 function refreshLive() { clearTimeout(pending); pending = setTimeout(drawLive, 150); }
 async function drawLive() {
@@ -337,7 +340,13 @@ async function loadStudents() {
     : '<p class="empty">No students yet. Add them above, one at a time or a whole class at once.</p>';
 }
 async function sendStudents(rows) {
-  const r = await api('/api/students', { body: { rows } });
+  // show progress so a big class paste doesn't look stuck
+  const btns = document.querySelectorAll('#tab-students button'); btns.forEach(b => b.disabled = true);
+  $('#sm').innerHTML = `<div class="msg ok">Adding ${plural(rows.length, 'student')}...</div>`;
+  let r;
+  try { r = await api('/api/students', { body: { rows } }); }
+  catch (e) { $('#sm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; return { added: 0, errors: [e.message] }; }
+  finally { btns.forEach(b => b.disabled = false); }
   $('#sm').innerHTML = r.errors.length ? `<div class="msg err">${r.added ? plural(r.added, 'student') + ' added. ' : ''}Not added:<br>${r.errors.map(esc).join('<br>')}</div>` : '';
   if (r.added) toast(`${plural(r.added, 'student')} added`);
   loadStudents();
@@ -354,7 +363,7 @@ async function addStudents() {
   const r = await sendStudents(rows);
   if (r.added && !r.errors.length) $('#csv').value = '';
 }
-async function rmStu(id, name) { if (confirm(`Remove ${name} from the class list?`)) { await api(`/api/students/${id}`, { method: 'DELETE' }); toast(`${name} removed`); loadStudents(); } }
+async function rmStu(id, name) { if (confirm(`Remove ${name} from the student list? They will also come off every session from today onwards. Past attendance is kept.`)) { await api(`/api/students/${id}`, { method: 'DELETE' }); toast(`${name} removed`); loadStudents(); } }
 
 // ---- reports ----
 async function loadReport() {

@@ -101,6 +101,7 @@ function hashPassword(pw, salt = crypto.randomBytes(16).toString('hex')) {
   return { salt, hash: crypto.scryptSync(String(pw), salt, 64).toString('hex') };
 }
 function verifyPassword(pw, salt, hash) {
+  if (!salt || !hash || hash.length !== 128) return false;   // students have no password at all
   return crypto.timingSafeEqual(crypto.scryptSync(String(pw), salt, 64), Buffer.from(hash, 'hex'));
 }
 

@@ -88,7 +88,7 @@ npm start         # http://localhost:3000, login admin / admin123
 
 ## Tests
 
-`npm test` runs 49 end-to-end checks. Set `DATABASE_URL` to run them against PostgreSQL. Both pass.
+`npm test` runs 59 end-to-end checks. Set `DATABASE_URL` to run them against PostgreSQL. Both pass.
 
 ## Files
 

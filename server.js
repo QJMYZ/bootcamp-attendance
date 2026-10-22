@@ -14,7 +14,7 @@ const SESSION_HOURS = 12;
 
 const app = express();
 app.set('trust proxy', true);   // correct client IP and https detection behind Render / Cloudflare
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));   // room for pasting thousands of students at once
 app.use((req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY' }); next(); });
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -81,6 +81,10 @@ const streams = new Map();
 function broadcast(eventId, payload) {
   for (const res of streams.get(String(eventId)) || []) res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
+// Tell every open dashboard to refresh (used when the student list changes)
+function broadcastAll(payload) { for (const key of streams.keys()) broadcast(key, payload); }
+// How many students are on a session's list: current students, plus removed ones who already checked in (kept for the record)
+const ON_LIST = e => `SELECT COUNT(*) FROM registrations r JOIN users u ON u.id=r.user_id WHERE r.event_id=${e} AND (u.active=1 OR EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=r.event_id AND c.user_id=r.user_id))`;
 
 // ---------- auth ----------
 app.get('/healthz', (req, res) => res.json({ ok: true, db: db.isPg ? 'postgres' : 'sqlite' }));
@@ -167,7 +171,8 @@ app.post('/api/me/password', auth(), h(async (req, res) => {
 app.get('/api/students', auth('trainer'), h(async (req, res) => {
   res.json(await all("SELECT id,username,name,email,active FROM users WHERE role='student' AND active=1 ORDER BY username"));
 }));
-// Add students: rows = [{username, name, email}]. Students have no password; they pick their name to check in.
+// Add students: rows = [{username, name, email}]. No limit on how many.
+// Students have no password (they pick their name to check in), so adding them is quick even for a large class.
 const EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 app.post('/api/students', auth('trainer'), h(async (req, res) => {
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [req.body];
@@ -177,30 +182,35 @@ app.post('/api/students', auth('trainer'), h(async (req, res) => {
     const label = [username, name, email].filter(Boolean).join(', ') || '(blank line)';
     if (!username || !name || !email) { errors.push(`Student ID, name and email are all needed: ${label}`); continue; }
     if (!EMAIL_RE.test(email)) { errors.push(`${username}: "${email}" is not a valid email`); continue; }
-    const pin = crypto.randomBytes(16).toString('hex');   // unused placeholder: students never log in
     try {
       const existing = await get('SELECT id,active FROM users WHERE LOWER(username)=LOWER(?)', [username]);
       if (existing && existing.active) { errors.push(`${username}: student ID already exists`); continue; }
       const sameEmail = await get("SELECT username FROM users WHERE LOWER(email)=? AND role='student' AND active=1", [email]);
       if (sameEmail) { errors.push(`${username}: email already used by ${sameEmail.username}`); continue; }
-      if (existing) {                                 // re-adding a removed student: reactivate with new details
-        const { salt, hash } = hashPassword(pin);
-        await run('UPDATE users SET active=1,name=?,email=?,salt=?,pass_hash=? WHERE id=?', [name, email, salt, hash, existing.id]);
-      } else await createUser({ username, name, email, role: 'student', password: pin });
+      if (existing) await run('UPDATE users SET active=1,name=?,email=? WHERE id=?', [name, email, existing.id]);   // re-adding a removed student
+      else await run("INSERT INTO users (username,name,role,email,salt,pass_hash) VALUES (?,?,'student',?,'','')", [username, name, email]);
       created.push({ username, name, email });
     } catch (e) { errors.push(`${username}: could not add`); }
   }
   // New students join every session from today onwards, so it doesn't matter whether sessions or students were set up first
-  if (created.length) {
+  for (let i = 0; i < created.length; i += 500) {      // in batches of 500 so very large classes still work
+    const batch = created.slice(i, i + 500);
     await run(`INSERT INTO registrations (event_id,user_id)
       SELECT e.id, u.id FROM events e, users u
-      WHERE e.date >= ? AND u.role='student' AND u.active=1 AND LOWER(u.username) IN (${created.map(() => '?').join(',')})
-      ON CONFLICT DO NOTHING`, [localDate(), ...created.map(c => c.username.toLowerCase())]);
+      WHERE e.date >= ? AND u.role='student' AND u.active=1 AND LOWER(u.username) IN (${batch.map(() => '?').join(',')})
+      ON CONFLICT DO NOTHING`, [localDate(), ...batch.map(c => c.username.toLowerCase())]);
   }
+  if (created.length) broadcastAll({ type: 'refresh' });   // open dashboards update straight away
   res.json({ added: created.length, created, errors });
 }));
+// Remove a student: they drop off the student list and off every session from today onwards.
+// Past attendance is kept, so old reports stay correct.
 app.delete('/api/students/:id', auth('trainer'), h(async (req, res) => {
-  await run("UPDATE users SET active=0 WHERE id=? AND role='student'", [req.params.id]);
+  const id = num(req.params.id) || 0;
+  await run("UPDATE users SET active=0 WHERE id=? AND role='student'", [id]);
+  await run(`DELETE FROM registrations WHERE user_id=? AND event_id IN (SELECT id FROM events WHERE date >= ?)
+    AND NOT EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=registrations.event_id AND c.user_id=registrations.user_id)`, [id, localDate()]);
+  broadcastAll({ type: 'refresh' });
   res.json({ ok: true });
 }));
 
@@ -211,7 +221,7 @@ const REG_ALL = `INSERT INTO registrations (event_id,user_id) SELECT CAST(? AS I
 app.get('/api/events', auth('trainer'), h(async (req, res) => {
   const rows = await all(`
     SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,
-      CAST((SELECT COUNT(*) FROM registrations r WHERE r.event_id=e.id) AS INTEGER) AS registered,
+      CAST((${ON_LIST('e.id')}) AS INTEGER) AS registered,
       CAST((SELECT COUNT(*) FROM checkins c WHERE c.event_id=e.id) AS INTEGER) AS checked_in
     FROM events e ORDER BY e.date DESC, e.start_time DESC`);
   res.json(rows);
@@ -332,7 +342,7 @@ async function eventSummary(id) {
     ORDER BY u.username`, [ev.id]);
   const suspicious = await all(`SELECT s.ts,s.reason,s.ip,u.username,u.name FROM suspicious s LEFT JOIN users u ON u.id=s.user_id
     WHERE s.event_id=? ORDER BY s.ts DESC LIMIT 100`, [ev.id]);
-  const registered = num((await get('SELECT CAST(COUNT(*) AS INTEGER) AS n FROM registrations WHERE event_id=?', [ev.id])).n);
+  const registered = num((await get(`SELECT CAST((${ON_LIST('?')}) AS INTEGER) AS n`, [ev.id])).n);
   const count = s => checkins.filter(c => c.status === s).length;
   return {
     event: ev, registered, checkins, missing, suspicious,

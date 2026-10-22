@@ -11,7 +11,7 @@ async function seed() {
   for (const [i, n] of names.entries()) {
     const id = 'S' + String(i + 1).padStart(3, '0');
     if (await db.get('SELECT 1 AS x FROM users WHERE username=?', [id])) continue;
-    await db.createUser({ username: id, name: n, role: 'student', email: n.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com', password: crypto.randomBytes(16).toString('hex') }); added++;
+    await db.run("INSERT INTO users (username,name,role,email,salt,pass_hash) VALUES (?,?,'student',?,'','')", [id, n, n.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com']); added++;
   }
   const date = new Date().toLocaleDateString('en-CA', { timeZone: process.env.TZ_NAME || 'Asia/Singapore' });
   if (!(await db.get('SELECT 1 AS x FROM events WHERE date=?', [date]))) {

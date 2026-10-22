@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scan to check in | SEMI Bootcamp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* Projector view: white so the QR scans reliably, big type readable from the back of the room */
+body{background:var(--surface);min-height:100vh;display:flex}
+.stage{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6vw;align-items:center;padding:5vh 6vw;max-width:1600px;margin:0 auto}
+.qr{position:relative;width:min(70vh,46vw);aspect-ratio:1;border:2px solid var(--line);border-radius:22px;padding:2.2vh;background:#fff}
+.qr img{width:100%;height:100%;display:block;image-rendering:pixelated;transition:opacity .3s}
+.qr .closed{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:12%;
+  font:700 clamp(20px,2.6vw,34px)/1.2 var(--display);color:var(--ink)}
+.qr.is-closed img{opacity:.08}
+.qr.is-closed .closed{display:flex}
+.info .logo{width:clamp(120px,12vw,190px);display:block;margin-bottom:5vh}
+.info h1{font-size:clamp(30px,4.2vw,64px);font-weight:800;letter-spacing:-.02em;margin-bottom:1.2vh}
+.info .when{font-size:clamp(16px,1.6vw,24px);color:var(--ink-2);margin-bottom:4vh}
+.steps{font-size:clamp(18px,1.9vw,28px);line-height:1.5;margin:0 0 5vh;padding-left:1.3em}
+.steps li::marker{font-weight:700;color:var(--green-ink)}
+.tally{display:flex;align-items:center;gap:2.4vw}
+.tally .wafer{width:clamp(90px,9vw,150px);flex:none}
+.tally b{display:block;font:800 clamp(40px,5vw,80px)/1 var(--display);letter-spacing:-.03em}
+.tally span{font-size:clamp(15px,1.4vw,22px);color:var(--ink-2)}
+.tools{position:fixed;right:16px;bottom:14px;display:flex;gap:8px}
+@media(max-width:760px){.stage{grid-template-columns:1fr;gap:28px}.qr{width:100%}}
+@media print{
+  .tools,.tally{display:none}
+  .stage{grid-template-columns:1fr;text-align:center;gap:24px}
+  .qr{width:14cm;margin:0 auto}
+  .info .logo{margin:0 auto 24px}
+  .steps{display:inline-block;text-align:left}
+}
+</style></head>
+<body>
+<div class="stage">
+  <div class="qr" id="qrBox"><img id="img" alt="Check-in QR code"><div class="closed">Check-in opens soon</div></div>
+  <div class="info">
+    <img class="logo" src="semi-logo.png" alt="SEMI">
+    <h1 id="title">Loading...</h1>
+    <p class="when" id="when"></p>
+    <ol class="steps">
+      <li>Open your phone camera and scan the code</li>
+      <li>Find your name and tap Check in</li>
+    </ol>
+    <div class="tally"><div class="wafer" id="wafer"></div><div><b id="cnt">0</b><span id="cntl">checked in</span></div></div>
+  </div>
+</div>
+<div class="tools"><button class="btn-quiet" onclick="print()">Print</button><button class="btn-quiet" onclick="document.documentElement.requestFullscreen?.()">Full screen</button></div>
+<script src="common.js"></script>
+<script>
+// Fixed QR for the session. Rechecks every 5 s so the count, "closed" state and any Reset QR show up.
+const id = new URLSearchParams(location.search).get('e');
+let lastUrl = '';
+async function refresh() {
+  try {
+    const [r, s] = await Promise.all([api(`/api/events/${id}/qr`), api(`/api/events/${id}/summary`)]);
+    $('#title').textContent = r.name;
+    $('#when').textContent = `${fmtDate(r.date)}, starts ${s.event.start_time}`;
+    if (r.url !== lastUrl) { $('#img').src = r.dataUrl; lastUrl = r.url; }
+    $('#qrBox').classList.toggle('is-closed', !r.open);
+    $('#cnt').textContent = `${s.totals.checked_in} of ${s.registered}`;
+    $('#cntl').textContent = 'checked in';
+    const dies = [...s.checkins.map(c => ({ u: c.username, state: c.status })), ...s.missing.map(m => ({ u: m.username, state: 'missing' }))]
+      .sort((a, b) => a.u.localeCompare(b.u, undefined, { numeric: true })).map(d => ({ state: d.state, title: '' }));
+    drawWafer($('#wafer'), dies);
+  } catch (e) { $('#when').textContent = e.message; }
+}
+requireLogin('trainer').then(me => { if (me) { refresh(); setInterval(refresh, 5000); } });
+</script>
+</body></html>

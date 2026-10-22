@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trainer sign in | SEMI Bootcamp Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+body{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+.art{background:var(--ink);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.art .wafer{width:min(500px,92%);margin:28px auto}
+.art .wafer .edge{fill:#272D33;stroke:#3A424A}
+.art .wafer .die.missing{fill:#2B3238;stroke:#3A424A}
+.art .wafer .die.unused{fill:#252B30}
+.art .tag{font-size:15px;font-weight:600;color:#C9D1C5;margin:0}
+.art .line{font-family:var(--display);font-size:30px;font-weight:700;line-height:1.15;max-width:420px;margin:0}
+.panel{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.form{width:100%;max-width:380px}
+.form .logo{width:150px;display:block;margin-bottom:36px}
+.form h1{margin-bottom:8px}
+.form .lede{color:var(--ink-2);margin-bottom:12px}
+.form button{width:100%;margin-top:22px;padding:13px}
+@media(max-width:820px){
+  body{grid-template-columns:1fr}
+  .art{display:none}
+  .panel{align-items:flex-start;padding-top:56px}
+}
+</style></head>
+<body>
+<aside class="art" aria-hidden="true">
+  <p class="tag">SEMI bootcamp</p>
+  <div class="wafer" id="art"></div>
+  <p class="line">Every student is one die on the wafer.</p>
+</aside>
+<main class="panel">
+  <div class="form">
+    <img class="logo" src="semi-logo.png" alt="SEMI">
+    <h1>Trainer sign in</h1>
+    <p class="lede">Students don't need an account. They scan the QR code in class and pick their name.</p>
+    <form id="f">
+      <label for="u">Username</label><input id="u" autocomplete="username" autocapitalize="none" required>
+      <label for="p">Password</label><input id="p" type="password" autocomplete="current-password" required>
+      <button>Sign in</button>
+    </form>
+    <div id="m" aria-live="polite"></div>
+  </div>
+</main>
+<script src="common.js"></script>
+<script>
+// Already signed in? Go straight to the dashboard.
+api('/api/me').then(me => { if (me.role === 'trainer') location.href = '/trainer.html'; }).catch(() => {});
+// Decorative wafer: a class that is mostly checked in
+(() => {
+  const states = ['present', 'present', 'present', 'present', 'present', 'late', 'missing', 'present', 'manual', 'present'];
+  drawWafer($('#art'), Array.from({ length: 88 }, (_, i) => ({ state: states[(i * 7) % states.length], title: '' })));
+})();
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const b = e.target.querySelector('button'); b.disabled = true;
+  try {
+    await api('/api/login', { body: { username: $('#u').value, password: $('#p').value } });
+    const next = new URLSearchParams(location.search).get('next');
+    location.href = next && next.startsWith('/') && !next.startsWith('//') ? next : '/trainer.html';
+  } catch (err) { $('#m').innerHTML = `<div class="msg err">${esc(err.message)}</div>`; b.disabled = false; }
+};
+</script>
+</body></html>

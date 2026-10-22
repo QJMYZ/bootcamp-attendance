@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard | SEMI Bootcamp Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ---- top bar ---- */
+.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.top .in{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:28px;height:64px}
+.top .logo{height:26px;width:auto}
+.tabs{display:flex;gap:4px;height:100%;overflow-x:auto;scrollbar-width:none}
+.tabs button{height:100%;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--ink-2);padding:0 12px;font-weight:600}
+.tabs button:hover{background:none;color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--green)}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:14px;white-space:nowrap}
+main{max-width:1240px;margin:0 auto;padding:28px 24px 64px}
+section > h1{margin-bottom:4px}
+.sub{color:var(--ink-2);margin-bottom:22px}
+
+/* ---- live: event bar ---- */
+.evbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;margin-bottom:24px}
+.evpick{flex:1 1 320px;min-width:0}
+.evpick select{width:auto;appearance:none;border:0;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none' stroke='%231E2328' stroke-width='2.2'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E") right 4px center no-repeat;
+  padding:0 30px 0 0;font:700 28px/1.2 var(--display);letter-spacing:-.01em;cursor:pointer;max-width:100%;text-overflow:ellipsis}
+.evpick .meta{color:var(--ink-2);margin:6px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---- live: overview ring + missing list ---- */
+.live{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:32px;align-items:start}
+.overview{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px}
+.missing-block{margin-top:30px}
+.feed-block{margin-top:34px}
+.missing-block h2,.feed-block h2{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.missing-block h2 small,.feed-block h2 small{font:600 15px var(--text);color:var(--ink-2)}
+.missing-block .scroll{max-height:440px;overflow:auto}
+.feed-block .scroll{max-height:460px;overflow:auto}
+.missing-block table td{padding:9px 8px}
+.blocked{margin-top:30px;border-top:1px solid var(--line);padding-top:16px}
+.blocked summary{cursor:pointer;font-weight:600}
+.empty{color:var(--ink-2);padding:12px 0}
+.nolive{padding:60px 0;text-align:center;color:var(--ink-2)}
+
+/* ---- forms on other tabs ---- */
+.block{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:24px}
+.block h2{margin-bottom:4px}
+.fields{display:flex;flex-wrap:wrap;gap:0 14px;align-items:flex-end}
+.fields > div{flex:1 1 170px}
+.fields > button{margin-top:14px}
+.check{display:flex;align-items:center;gap:8px;font-weight:500}
+.check input{width:18px;height:18px;margin:0;accent-color:var(--green-ink)}
+details.paste{margin-top:18px}
+details.paste summary{cursor:pointer;font-weight:600;color:var(--ink)}
+code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
+.repnums{display:flex;flex-wrap:wrap;gap:12px 40px;margin:8px 0 6px}
+.repnums b{display:block;font:700 30px/1.1 var(--display)}
+.repnums span{font-size:13px;color:var(--ink-2)}
+.right{text-align:right;white-space:nowrap}
+
+@media(max-width:920px){
+  .live{grid-template-columns:1fr}
+  .overview{max-width:440px}
+}
+@media(max-width:640px){
+  .top .in{padding:0 16px;gap:14px}
+  .who span{display:none}
+  main{padding:20px 16px 48px}
+  .evpick select{font-size:22px}
+}
+</style></head>
+<body>
+<header class="top"><div class="in">
+  <img class="logo" src="semi-logo.png" alt="SEMI">
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="live" aria-selected="true">Live</button>
+    <button role="tab" data-tab="events" aria-selected="false">Sessions</button>
+    <button role="tab" data-tab="students" aria-selected="false">Students</button>
+    <button role="tab" data-tab="reports" aria-selected="false">Reports</button>
+    <button role="tab" data-tab="account" aria-selected="false">Account</button>
+  </nav>
+  <div class="who"><span id="who"></span><button class="btn-quiet" onclick="logout()">Sign out</button></div>
+</div></header>
+
+<main>
+<!-- LIVE -->
+<section id="tab-live">
+  <div class="evbar">
+    <div class="evpick">
+      <label for="evSel" class="sr">Session</label>
+      <select id="evSel"></select>
+      <p class="meta" id="evMeta"></p>
+    </div>
+    <div class="actions" id="evActions">
+      <button id="openBtn" class="btn-go" onclick="toggleOpen()">Open check-in</button>
+      <a class="btn btn-quiet" id="qrLink" target="_blank">Show QR screen</a>
+      <a class="btn btn-quiet" id="csvLink">Download CSV</a>
+      <button class="btn-quiet" onclick="resetQr()">Reset QR</button>
+    </div>
+  </div>
+
+  <div id="liveBody" class="hidden">
+    <div class="live">
+      <div class="overview">
+        <div class="ring" id="ring"></div>
+        <ul class="ring-key" id="ringKey"></ul>
+      </div>
+      <div>
+        <div class="missing-block" style="margin-top:0">
+          <h2>Not here yet <small id="missN"></small></h2>
+          <div class="scroll" id="missing"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feed-block">
+      <h2>Checked in <small id="feedN"></small></h2>
+      <div class="scroll" id="feed"></div>
+    </div>
+
+    <details class="blocked">
+      <summary>Blocked check-ins (<span id="susN">0</span>)</summary>
+      <p class="small muted" style="margin-top:8px">Old or fake QR codes, names checked in twice, and one phone used for two names.</p>
+      <div id="sus"></div>
+    </details>
+  </div>
+  <div id="noEvents" class="nolive hidden">
+    <h2>No sessions yet</h2><p>Create the first session in the Sessions tab, then come back here to open check-in.</p>
+  </div>
+</section>
+
+<!-- SESSIONS -->
+<section id="tab-events" class="hidden">
+  <h1>Sessions</h1><p class="sub">Each bootcamp day or class is a session with its own QR code.</p>
+  <div class="block">
+    <h2>New session</h2>
+    <div class="fields">
+      <div style="flex-basis:260px"><label for="eName">Name</label><input id="eName" placeholder="Bootcamp Day 1"></div>
+      <div><label for="eDate">Date</label><input id="eDate" type="date"></div>
+      <div><label for="eStart">Starts at</label><input id="eStart" type="time" value="09:00"></div>
+      <div><label for="eLate">Late after (minutes)</label><input id="eLate" type="number" min="0" value="15"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
+    <button onclick="createEvent()" style="margin-top:14px">Create session</button>
+    <div id="em"></div>
+  </div>
+  <div id="evList"></div>
+</section>
+
+<!-- STUDENTS -->
+<section id="tab-students" class="hidden">
+  <h1>Students</h1><p class="sub">These names appear on the check-in page after a student scans the QR.</p>
+  <div class="block">
+    <h2>Add a student</h2>
+    <form class="fields" onsubmit="event.preventDefault(); addOne()">
+      <div><label for="sId">Student ID</label><input id="sId" placeholder="S001" required></div>
+      <div style="flex-basis:220px"><label for="sName">Name</label><input id="sName" placeholder="Tan Wei Ming" required></div>
+      <div style="flex-basis:240px"><label for="sEmail">Email</label><input id="sEmail" type="email" placeholder="weiming@example.com" required></div>
+      <button>Add student</button>
+    </form>
+    <details class="paste"><summary>Add a whole class at once</summary>
+      <p class="small muted" style="margin-top:8px">One student per line as <code>ID, name, email</code>, or copy the three columns straight from Excel.</p>
+      <textarea id="csv" placeholder="S001, Tan Wei Ming, weiming@example.com&#10;S002, Nur Aisyah, aisyah@example.com"></textarea>
+      <button class="btn-quiet" onclick="addStudents()" style="margin-top:10px">Add these students</button>
+    </details>
+    <div id="sm"></div>
+  </div>
+  <h2 style="margin-bottom:8px">Class list <small class="muted" id="stuN" style="font:600 15px var(--text)"></small></h2>
+  <div id="stuList"></div>
+</section>
+
+<!-- REPORTS -->
+<section id="tab-reports" class="hidden">
+  <h1>Reports</h1><p class="sub">Attendance totals for one day across all its sessions.</p>
+  <div class="fields" style="max-width:420px;margin-bottom:24px">
+    <div><label for="rDate">Day</label><input id="rDate" type="date"></div>
+    <button onclick="loadReport()">Show report</button>
+  </div>
+  <div id="report"></div>
+</section>
+
+<!-- ACCOUNT -->
+<section id="tab-account" class="hidden">
+  <h1>Account</h1><p class="sub">Change the trainer password before the first real session. Use at least 8 characters.</p>
+  <div class="block" style="max-width:520px">
+    <label for="aOld" style="margin-top:0">Current password</label><input id="aOld" type="password" autocomplete="current-password">
+    <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
+    <button onclick="changePw()" style="margin-top:16px">Change password</button>
+    <div id="am"></div>
+  </div>
+</section>
+</main>
+
+<script src="common.js"></script>
+<script>
+let events = [], current = null, es = null, lastSummary = null;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+// ---- tabs ----
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x.dataset.tab === name));
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hidden', s.id !== 'tab-' + name));
+  if (name === 'students') loadStudents();
+  if (name === 'reports') loadReport();
+  if (name === 'events' || name === 'live') loadEvents();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+// ---- sessions ----
+async function loadEvents() {
+  events = await api('/api/events');
+  const keep = $('#evSel').value;
+  $('#evSel').innerHTML = events.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const todays = events.find(e => e.date === today());
+  $('#evSel').value = keep && events.some(e => e.id == keep) ? keep : (todays?.id || events[0]?.id || '');
+  $('#noEvents').classList.toggle('hidden', events.length > 0);
+  $('#evActions').classList.toggle('hidden', !events.length);
+  $('#evList').innerHTML = events.length ? `<div class="block" style="padding:8px 24px"><table>
+    <tr><th>Session</th><th>Date</th><th>Starts</th><th class="num">On list</th><th class="num">Checked in</th><th>Check-in</th><th></th></tr>
+    ${events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${fmtDate(e.date)}</td><td>${e.start_time}</td>
+    <td class="num">${e.registered}</td><td class="num">${e.checked_in}</td>
+    <td>${e.checkin_open ? '<span class="chip open">Open</span>' : '<span class="chip">Closed</span>'}</td>
+    <td class="right"><button class="link" onclick="openLive(${e.id})">View live</button>
+      <button class="link" onclick="registerAll(${e.id})">Add all students</button>
+      <button class="link danger" onclick="delEvent(${e.id})">Delete</button></td></tr>`).join('')}</table></div>` : '';
+  if ($('#evSel').value != current) selectEvent($('#evSel').value);
+}
+$('#evSel').onchange = () => selectEvent($('#evSel').value);
+function openLive(id) { $('#evSel').value = id; selectEvent(String(id)); showTab('live'); }
+async function createEvent() {
+  try {
+    const r = await api('/api/events', { body: { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value,
+      late_after_min: $('#eLate').value, register_all: $('#eAll').checked } });
+    $('#em').innerHTML = ''; $('#eName').value = '';
+    toast('Session created'); await loadEvents(); openLive(r.id);
+  } catch (e) { $('#em').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+async function registerAll(id) { const r = await api(`/api/events/${id}/register-all`, { body: {} }); toast(`${plural(r.added, 'student')} added to the list`); loadEvents(); }
+async function delEvent(id) {
+  const e = events.find(x => x.id === id);
+  if (confirm(`Delete "${e.name}" and all its attendance records? This can't be undone.`)) { await api(`/api/events/${id}`, { method: 'DELETE' }); toast('Session deleted'); current = null; loadEvents(); }
+}
+
+// ---- live ----
+function selectEvent(id) {
+  current = id; if (es) es.close();
+  $('#liveBody').classList.toggle('hidden', !id);
+  if (!id) return;
+  $('#qrLink').href = `/qr.html?e=${id}`; $('#csvLink').href = `/api/events/${id}/report.csv`;
+  refreshLive();
+  es = new EventSource(`/api/events/${id}/stream`);       // server pushes every check-in instantly
+  es.onmessage = () => refreshLive();
+}
+// Backup: refresh every 5 s anyway, in case a proxy or host blocks the live stream
+setInterval(() => { if (current && !document.hidden && !$('#tab-live').classList.contains('hidden')) refreshLive(); }, 5000);
+let pending = null;
+function refreshLive() { clearTimeout(pending); pending = setTimeout(drawLive, 150); }
+async function drawLive() {
+  const s = await api(`/api/events/${current}/summary`), t = s.totals, ev = s.event;
+  lastSummary = s;
+  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min
+    ${ev.checkin_open ? '<span class="chip open">Check-in open</span>' : '<span class="chip">Check-in closed</span>'}`;
+  $('#openBtn').textContent = ev.checkin_open ? 'Close check-in' : 'Open check-in';
+  $('#openBtn').className = ev.checkin_open ? 'btn-stop' : 'btn-go';
+
+  // overview ring: how many are checked in, split by on time / late / marked
+  drawRing($('#ring'), t, s.registered);
+  $('#ringKey').innerHTML = [['var(--green)', 'On time', t.present], ['var(--amber)', 'Late', t.late],
+    ['var(--green-ink)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
+    .map(([c, l, n]) => `<li><i style="background:${c}"></i>${l}<b>${n}</b></li>`).join('');
+
+  $('#missN').textContent = t.missing;
+  $('#missing').innerHTML = s.missing.length ? `<table>${s.missing.map(m => `<tr><td><b>${esc(m.name)}</b><div class="id">${esc(m.username)}, ${esc(m.email)}</div></td>
+    <td class="right"><button class="link" onclick="manual(${m.user_id}, '${esc(m.name).replace(/'/g, '&#39;')}')">Mark present</button></td></tr>`).join('')}</table>`
+    : `<p class="empty">${s.registered ? 'Everyone on the list is here.' : 'No students on this session yet. Add them in the Sessions tab.'}</p>`;
+  $('#feedN').textContent = t.checked_in;
+  $('#feed').innerHTML = s.checkins.length ? `<table>${s.checkins.map(c => `<tr><td style="width:56px" class="id">${fmtTime(c.ts)}</td>
+    <td><b>${esc(c.name)}</b><div class="id">${esc(c.username)}${c.flagged ? `, ${esc(c.flag_reason)}` : ''}</div></td>
+    <td><span class="chip ${c.status}">${c.status === 'manual' ? 'Marked' : c.status === 'late' ? 'Late' : 'On time'}</span></td>
+    <td class="right"><button class="link" onclick="undo(${c.user_id}, '${esc(c.name).replace(/'/g, '&#39;')}')" title="Remove this check-in, e.g. wrong name picked">Undo</button></td></tr>`).join('')}</table>`
+    : `<p class="empty">${ev.checkin_open ? 'Waiting for the first scan.' : 'Open check-in and show the QR screen to start.'}</p>`;
+  $('#susN').textContent = s.suspicious.length;
+  $('#sus').innerHTML = s.suspicious.length ? `<table><tr><th>Time</th><th>Name chosen</th><th>Reason</th></tr>${s.suspicious.map(x =>
+    `<tr><td class="id">${fmtTime(x.ts)}</td><td>${esc(x.name || '')} <span class="id">${esc(x.username || '')}</span></td><td>${esc(x.reason)}</td></tr>`).join('')}</table>`
+    : '<p class="empty">Nothing blocked so far.</p>';
+}
+async function toggleOpen() {
+  const open = !lastSummary.event.checkin_open;
+  await api(`/api/events/${current}/open`, { body: { open } });
+  toast(open ? 'Check-in is open' : 'Check-in is closed'); refreshLive(); loadEvents();
+}
+async function resetQr() {
+  if (!confirm('Make a new QR code for this session? The old code, including any printed copy or photo of it, will stop working.')) return;
+  await api(`/api/events/${current}/reset-qr`, { body: {} }); toast('New QR code made. Refresh or reprint the QR screen.');
+}
+async function undo(uid, name) {
+  if (!confirm(`Undo the check-in for ${name}? They go back to "Not here yet".`)) return;
+  await api(`/api/events/${current}/checkins/${uid}`, { method: 'DELETE' }); toast(`Check-in for ${name} removed`); refreshLive();
+}
+async function manual(uid, name) {
+  if (name && !confirm(`Mark ${name} present?`)) return;
+  await api(`/api/events/${current}/manual`, { body: { userId: uid } }); toast(`${name || 'Student'} marked present`); refreshLive();
+}
+
+// ---- students ----
+async function loadStudents() {
+  const list = (await api('/api/students')).filter(s => s.active);
+  $('#stuN').textContent = list.length;
+  $('#stuList').innerHTML = list.length ? `<div class="block" style="padding:8px 24px"><table><tr><th>ID</th><th>Name</th><th>Email</th><th></th></tr>${list.map(s =>
+    `<tr><td class="id">${esc(s.username)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.email)}</td>
+    <td class="right"><button class="link danger" onclick="rmStu(${s.id}, '${esc(s.name).replace(/'/g, '&#39;')}')">Remove</button></td></tr>`).join('')}</table></div>`
+    : '<p class="empty">No students yet. Add them above, one at a time or a whole class at once.</p>';
+}
+async function sendStudents(rows) {
+  const r = await api('/api/students', { body: { rows } });
+  $('#sm').innerHTML = r.errors.length ? `<div class="msg err">${r.added ? plural(r.added, 'student') + ' added. ' : ''}Not added:<br>${r.errors.map(esc).join('<br>')}</div>` : '';
+  if (r.added) toast(`${plural(r.added, 'student')} added`);
+  loadStudents();
+  return r;
+}
+async function addOne() {
+  const r = await sendStudents([{ username: $('#sId').value, name: $('#sName').value, email: $('#sEmail').value }]);
+  if (r.added) { $('#sId').value = $('#sName').value = $('#sEmail').value = ''; $('#sId').focus(); }
+}
+async function addStudents() {
+  // accepts commas or tabs (tabs = pasted from Excel)
+  const rows = $('#csv').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [username, name, email] = l.split(/\t|,/).map(x => x?.trim()); return { username, name, email }; });
+  const r = await sendStudents(rows);
+  if (r.added && !r.errors.length) $('#csv').value = '';
+}
+async function rmStu(id, name) { if (confirm(`Remove ${name} from the class list?`)) { await api(`/api/students/${id}`, { method: 'DELETE' }); toast(`${name} removed`); loadStudents(); } }
+
+// ---- reports ----
+async function loadReport() {
+  const r = await api(`/api/reports/daily?date=${$('#rDate').value || today()}`), t = r.totals;
+  const n = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+  $('#report').innerHTML = `<div class="block"><h2>${fmtDate(r.date)}</h2>
+    <div class="repnums">${n(t.checked_in, 'Check-ins') + n(t.unique_students, 'Different students') + n(t.late, 'Late') + n(t.missing, 'Absent') + n(t.blocked_attempts, 'Blocked check-ins')}</div></div>
+    ${r.events.length ? `<div class="block" style="padding:8px 24px"><table><tr><th>Session</th><th>Starts</th><th class="num">On list</th><th class="num">On time</th><th class="num">Late</th>
+      <th class="num">Marked</th><th class="num">Absent</th><th class="num">Rate</th><th></th></tr>
+    ${r.events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${e.start_time}</td><td class="num">${e.registered}</td><td class="num">${e.present}</td><td class="num">${e.late}</td>
+      <td class="num">${e.manual}</td><td class="num">${e.missing}</td><td class="num"><b>${e.rate}%</b></td>
+      <td class="right"><a href="/api/events/${e.id}/report.csv">Download CSV</a></td></tr>`).join('')}</table></div>`
+    : '<p class="empty">No sessions on this day.</p>'}`;
+}
+
+// ---- account ----
+async function changePw() {
+  try { await api('/api/me/password', { body: { oldPassword: $('#aOld').value, newPassword: $('#aNew').value } });
+    $('#am').innerHTML = ''; $('#aOld').value = $('#aNew').value = ''; toast('Password changed'); }
+  catch (e) { $('#am').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+(async () => {
+  const me = await requireLogin('trainer'); if (!me) return;
+  $('#who').textContent = me.name; $('#eDate').value = today(); $('#rDate').value = today();
+  loadEvents();
+})();
+</script>
+</body></html>

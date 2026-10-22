@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F3F5F2">
+<title>Check in | SEMI Bootcamp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.wrap{max-width:460px;margin:0 auto;padding:20px 16px 120px}
+.logo{width:112px;display:block;margin:4px 0 26px}
+h1{font-size:26px;margin-bottom:4px}
+.when{color:var(--ink-2);margin-bottom:18px}
+.notice{background:var(--amber-tint);color:var(--amber-ink);border-radius:var(--r);padding:12px 14px;font-size:14px;margin-bottom:6px}
+.search{position:relative}
+.search input{padding-left:40px;font-size:16px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%2359626A' stroke-width='2'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='m12.5 12.5 4 4'/%3E%3C/svg%3E") 13px 50% no-repeat}
+.names{list-style:none;margin:12px 0 0;padding:0;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);overflow:hidden}
+.names li+li{border-top:1px solid var(--line)}
+.name{width:100%;display:flex;align-items:center;gap:12px;padding:14px 14px;background:none;border:0;border-radius:0;color:var(--ink);
+  font:500 16px/1.3 var(--text);text-align:left;white-space:normal;justify-content:flex-start}
+.name:hover{background:var(--paper)}
+.name .id{margin-left:auto;flex:none}
+.name .box{flex:none;width:20px;height:20px;border-radius:5px;border:1.5px solid #B9C2B5;background:var(--surface)}
+.name[aria-checked="true"]{background:var(--green-tint)}
+.name[aria-checked="true"] .box{background:var(--green);border-color:var(--green);
+  box-shadow:inset 0 0 0 3px var(--green-tint)}
+.name:disabled{opacity:1;color:#8A9399;background:#FAFBF9}
+.name:disabled .box{background:transparent;border-color:transparent;position:relative}
+.name:disabled .box::after{content:"";position:absolute;left:6px;top:2px;width:6px;height:11px;border:solid #8A9399;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.name .done-tag{margin-left:auto;font-size:13px;font-weight:600;color:#8A9399}
+.empty{padding:16px 14px;color:var(--ink-2)}
+.help{color:var(--ink-2);font-size:14px;margin-top:14px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:rgba(243,245,242,.94);backdrop-filter:blur(6px);border-top:1px solid var(--line)}
+.bar .inner{max-width:460px;margin:0 auto}
+#go{width:100%;padding:15px;font-size:16px;border-radius:var(--r)}
+#go:disabled{opacity:1;background:#A9C7A4;border-color:#A9C7A4}
+.bar{z-index:5}
+#m:empty{display:none}
+
+/* success: one die fills with SEMI green */
+.done{text-align:center;padding-top:28px}
+.done .die{width:96px;height:96px;margin:0 auto 22px;border-radius:14px;border:2px solid var(--green);position:relative;overflow:hidden}
+.done .die::before{content:"";position:absolute;inset:0;background:var(--green);transform:translateY(100%);animation:fill .7s cubic-bezier(.2,.8,.2,1) forwards}
+.done.late .die{border-color:var(--amber)} .done.late .die::before{background:var(--amber)}
+.done .die svg{position:absolute;inset:0;margin:auto;width:46px;opacity:0;animation:show .25s .55s forwards}
+@keyframes fill{to{transform:none}} @keyframes show{to{opacity:1}}
+.done h1{font-size:30px}
+.done .who{font:700 20px/1.3 var(--display);margin:14px 0 4px}
+.done .meta{color:var(--ink-2)}
+.problem{padding-top:12px}
+.problem h1{color:var(--red)}
+</style></head>
+<body>
+<div class="wrap">
+  <img class="logo" src="semi-logo.png" alt="SEMI">
+  <main id="box" aria-live="polite"><p class="muted">Loading the class list...</p></main>
+</div>
+<script src="common.js"></script>
+<script>
+// The QR code opens this page with ?e=<event>&t=<event code>. The student picks their name and taps Check in.
+const q = new URLSearchParams(location.search), eventId = Number(q.get('e')), token = q.get('t');
+const KEY = 'att_last_student';            // remembers the name chosen on this phone for next time
+const remembered = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
+const remember = id => { try { localStorage.setItem(KEY, id); } catch {} };
+let data = null, chosen = null;
+
+function problem(title, text) {
+  $('#box').innerHTML = `<div class="problem"><h1>${esc(title)}</h1><p class="when">${esc(text)}</p></div>`;
+}
+async function load() {
+  try { data = await api(`/api/checkin/names?e=${eventId}&t=${encodeURIComponent(token || '')}`); }
+  catch (e) { return problem("This QR code didn't work", 'Scan the code on the screen in class again. If it still fails, tell the trainer.'); }
+  if (!data.today) return problem(data.event, `This session is on ${fmtDate(data.date)}. Scan the QR code on the day.`);
+  const last = remembered();
+  if (last && data.names.some(n => String(n.id) === last && !n.checked_in)) chosen = last;
+  // remembered name first, then everyone not yet checked in, checked-in names last
+  data.names.sort((a, b) => (String(b.id) === chosen) - (String(a.id) === chosen) || a.checked_in - b.checked_in);
+  $('#box').innerHTML = `
+    <h1>${esc(data.event)}</h1>
+    <p class="when">${fmtDate(data.date)}</p>
+    ${data.open ? '' : '<p class="notice">Check-in opens when the trainer starts the session. Pick your name now and tap Check in once it opens.</p>'}
+    <label for="find">Find your name</label>
+    <div class="search"><input id="find" type="search" placeholder="Start typing your name" autocomplete="off" enterkeyhint="search"></div>
+    <ul class="names" id="names" role="radiogroup" aria-label="Class list"></ul>
+    <p class="help">Name not on the list? Tell the trainer and they will add you.</p>
+    <div class="bar"><div class="inner"><div id="m" aria-live="assertive"></div><button id="go" class="btn-go"></button></div></div>`;
+  $('#find').oninput = drawNames;
+  $('#go').onclick = checkIn;
+  drawNames(); updateButton();
+}
+function drawNames() {
+  const f = $('#find').value.trim().toLowerCase();
+  const list = data.names.filter(n => !f || n.name.toLowerCase().includes(f) || n.username.toLowerCase().includes(f));
+  $('#names').innerHTML = list.length ? list.map(n => `<li><button class="name" role="radio" data-id="${n.id}"
+      aria-checked="${String(n.id) === chosen}" ${n.checked_in ? 'disabled' : ''}>
+      <span class="box"></span><span>${esc(n.name)}</span>${n.checked_in ? '<span class="done-tag">Checked in</span>' : `<span class="id">${esc(n.username)}</span>`}</button></li>`).join('')
+    : `<li class="empty">No name matches "${esc(f)}". Check the spelling or tell the trainer.</li>`;
+  $('#names').querySelectorAll('.name').forEach(b => b.onclick = () => { chosen = b.dataset.id; $('#m').innerHTML = ''; drawNames(); updateButton(); });
+}
+function updateButton() {
+  const n = data.names.find(x => String(x.id) === chosen);
+  $('#go').disabled = !n;
+  $('#go').textContent = n ? `Check in as ${n.name}` : 'Choose your name above';
+}
+async function checkIn() {
+  $('#go').disabled = true; $('#go').textContent = 'Checking in...';
+  try {
+    const r = await api('/api/checkin', { body: { eventId, token, studentId: Number(chosen) } });
+    remember(chosen);
+    const late = r.status === 'late';
+    $('#box').innerHTML = `<div class="done ${late ? 'late' : ''}">
+      <div class="die"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h1>You're checked in</h1>
+      <p class="who">${esc(r.name)}</p>
+      <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}</p>
+      <p class="help">You can close this page now.</p></div>`;
+  } catch (e) {
+    $('#m').innerHTML = `<div class="msg err" style="margin:0 0 10px">${esc(e.message)}</div>`;
+    updateButton();
+    if (e.status === 409) { data.names.forEach(n => { if (String(n.id) === chosen) n.checked_in = 1; }); chosen = null; drawNames(); updateButton(); }
+  }
+}
+load();
+</script>
+</body></html>

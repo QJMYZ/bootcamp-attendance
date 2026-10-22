@@ -1,0 +1,19 @@
+# Render Blueprint: Render reads this file from your GitHub repo and sets the service up.
+services:
+  - type: web
+    name: bootcamp-attendance
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: TZ_NAME
+        value: Asia/Singapore
+      - key: DATABASE_URL        # paste your Neon connection string when Render asks
+        sync: false
+      - key: ADMIN_PASSWORD      # trainer password for the first login
+        sync: false

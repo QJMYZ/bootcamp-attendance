@@ -1,0 +1,111 @@
+/* SEMI bootcamp attendance: shared styles
+   Palette from the SEMI logo. Green = checked in, amber = late, red = needs attention. */
+:root{
+  --paper:#F3F5F2;      /* page background */
+  --surface:#FFFFFF;
+  --ink:#1E2328;        /* graphite text and primary buttons */
+  --ink-2:#59626A;      /* secondary text */
+  --line:#DBE1D8;
+  --green:#4FA746;      /* SEMI green: checked in */
+  --green-ink:#2B7426;  /* green text / buttons on white (AA contrast) */
+  --green-tint:#E6F3E2;
+  --amber:#D9961E;      /* late */
+  --amber-ink:#8A5A00;
+  --amber-tint:#FBF0DA;
+  --red:#C23B32;
+  --red-tint:#FAE6E3;
+  --unused:#E9EDE6;
+  --r-sm:8px; --r:12px; --r-lg:18px;
+  --display:"Red Hat Display",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --text:"Red Hat Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--text);font-feature-settings:"tnum" 1}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.2;letter-spacing:-.01em}
+h1{font-size:28px;font-weight:700}
+h2{font-size:19px;font-weight:700}
+h3{font-size:16px;font-weight:600}
+p{margin:0 0 10px}
+a{color:var(--green-ink)}
+.muted{color:var(--ink-2)}
+.small{font-size:13px}
+.hidden{display:none !important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- form controls ---------- */
+label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
+input,select,textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);
+  font:inherit;color:inherit;background:var(--surface);transition:border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink)}
+textarea{min-height:110px;font-size:14px;resize:vertical}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none}
+
+button,.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:var(--r-sm);
+  border:1.5px solid var(--ink);background:var(--ink);color:#fff;font:600 14px/1.2 var(--text);cursor:pointer;text-decoration:none;white-space:nowrap}
+button:hover,.btn:hover{background:#000;border-color:#000}
+.btn-quiet{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn-quiet:hover{background:var(--paper);border-color:var(--ink-2)}
+.btn-go{background:var(--green-ink);border-color:var(--green-ink)}
+.btn-go:hover{background:#215E1D;border-color:#215E1D}
+.btn-stop{background:var(--surface);color:var(--red);border-color:var(--red)}
+.btn-stop:hover{background:var(--red-tint);border-color:var(--red)}
+.link{background:none;border:0;padding:4px 6px;color:var(--ink-2);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.link:hover{background:none;color:var(--ink)}
+.link.danger{color:var(--red)}
+button:disabled{opacity:.45;cursor:default}
+
+/* ---------- status chips ---------- */
+.chip{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.5px;font-weight:600;background:var(--unused);color:var(--ink-2)}
+.chip.present{background:var(--green-tint);color:var(--green-ink)}
+.chip.late{background:var(--amber-tint);color:var(--amber-ink)}
+.chip.manual{background:#E3E8EE;color:#3B4651}
+.chip.flag,.chip.absent{background:var(--red-tint);color:var(--red)}
+.chip.open{background:var(--green-tint);color:var(--green-ink)}
+.chip.open::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;vertical-align:1px}
+
+/* ---------- messages / toast ---------- */
+.msg{padding:10px 12px;border-radius:var(--r-sm);margin-top:12px;font-size:14px}
+.msg.ok{background:var(--green-tint);color:var(--green-ink)}
+.msg.err{background:var(--red-tint);color:var(--red)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;
+  border-radius:var(--r);font-weight:600;font-size:14px;z-index:50;max-width:calc(100% - 32px)}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:13px;font-weight:600;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right}
+.id{color:var(--ink-2);font-size:13px}
+
+/* ---------- wafer map ---------- */
+.wafer svg{display:block;width:100%;height:auto}
+.wafer .die{transition:fill .4s}
+.wafer .die.missing{fill:var(--surface);stroke:#B9C2B5;stroke-width:.35}
+.wafer .die.present{fill:var(--green)}
+.wafer .die.late{fill:var(--amber)}
+.wafer .die.manual{fill:var(--green-ink)}
+.wafer .die.unused{fill:var(--unused)}
+.wafer .die.clickable{cursor:pointer}
+.wafer .die.clickable:hover{stroke:var(--ink);stroke-width:.6}
+.wafer .edge{fill:#FAFBF9;stroke:#C9D1C5;stroke-width:.5}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;list-style:none;margin:14px 0 0;padding:0;font-size:13px;color:var(--ink-2)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+
+/* ---------- overview ring ---------- */
+.ring{position:relative;width:100%;max-width:300px;aspect-ratio:1;margin:0 auto}
+.ring svg{display:block;width:100%;height:100%}
+.ring-track{fill:none;stroke:var(--unused);stroke-width:11}
+.ring-arc{fill:none;stroke-width:11;transition:stroke-dasharray .6s,stroke-dashoffset .6s}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring-center b{font:800 68px/1 var(--display);letter-spacing:-.03em}
+.ring-center span{color:var(--ink-2);font-size:15px;margin-top:6px}
+.ring-center em{font-style:normal;font-weight:600;font-size:14px;color:var(--green-ink);margin-top:4px}
+.ring-key{list-style:none;padding:0;margin:22px 0 0;display:grid;gap:10px;max-width:300px;margin-left:auto;margin-right:auto}
+.ring-key li{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
+.ring-key i{width:12px;height:12px;border-radius:3px;flex:none}
+.ring-key b{margin-left:auto;font:700 17px var(--display);color:var(--ink)}

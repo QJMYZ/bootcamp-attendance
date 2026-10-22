@@ -146,6 +146,13 @@ app.post('/api/students', auth('trainer'), h(async (req, res) => {
       created.push({ username, name, email });
     } catch (e) { errors.push(`${username}: could not add`); }
   }
+  // New students join every session from today onwards, so it doesn't matter whether sessions or students were set up first
+  if (created.length) {
+    await run(`INSERT INTO registrations (event_id,user_id)
+      SELECT e.id, u.id FROM events e, users u
+      WHERE e.date >= ? AND u.role='student' AND u.active=1 AND LOWER(u.username) IN (${created.map(() => '?').join(',')})
+      ON CONFLICT DO NOTHING`, [localDate(), ...created.map(c => c.username.toLowerCase())]);
+  }
   res.json({ added: created.length, created, errors });
 }));
 app.delete('/api/students/:id', auth('trainer'), h(async (req, res) => {

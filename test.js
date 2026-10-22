@@ -78,9 +78,14 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(bad.body.added === 0 && bad.body.errors.length === 4, 'rejects missing email, invalid email, duplicate email and duplicate ID');
   // R001 is not registered for the event: still shown? (list shows registered only once some exist)
   const rid = (await T('/api/students')).body.find(s => s.username === 'R001').id;
-  ok(!(await phoneC(`/api/checkin/names?e=${ev.id}&t=${newTok}`)).body.names.some(n => n.id === rid), 'unregistered student not in this event list');
+  ok((await phoneC(`/api/checkin/names?e=${ev.id}&t=${newTok}`)).body.names.some(n => n.id === rid), "new student joins today's session list automatically");
   await T(`/api/events/${ev.id}/register-all`, {});
   ok((await phoneC(`/api/checkin/names?e=${ev.id}&t=${newTok}`)).body.names.some(n => n.id === rid), 'appears after "Register all"');
+  // Session first, students after: new students join today's and future sessions automatically
+  const s2 = (await T('/api/events', { name: 'Day 2', date: '2099-01-01', start_time: '09:00', late_after_min: 15, register_all: false })).body.id;
+  ok(s2 > 0, 'trainer creates a session through the API');
+  await T('/api/students', { rows: [{ username: 'R010', name: 'Late Joiner', email: 'late.joiner@example.com' }] });
+  ok((await T(`/api/events/${s2}/summary`)).body.missing.some(m => m.username === 'R010'), 'student added after the session is on its class list');
 
   // Brute force protection on trainer login
   const G = C({}, '10.9.9.9'); let last;
@@ -88,7 +93,7 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(last.status === 429, 'trainer login locked after 8 wrong passwords');
 
   const sum = (await T(`/api/events/${ev.id}/summary`)).body;
-  ok(sum.totals.checked_in === 2 && sum.totals.missing === 19, `live summary: ${sum.totals.checked_in} in, ${sum.totals.missing} missing`);
+  ok(sum.totals.checked_in === 2 && sum.totals.missing === 20, `live summary: ${sum.totals.checked_in} in, ${sum.totals.missing} missing`);
   ok(sum.missing.some(m => m.username === 'S004'), 'undone student is back on the missing list');
   ok(sum.suspicious.some(s => s.reason.startsWith('Same phone')), 'anti-cheat log records the shared phone attempt');
   ok((await T(`/api/events/${ev.id}/manual`, { userId: byId('S003') })).body.ok, 'trainer marks S003 present manually');

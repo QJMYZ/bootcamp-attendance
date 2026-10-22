@@ -140,7 +140,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
       <div><label for="eLate">Late after (minutes)</label><input id="eLate" type="number" min="0" value="15"></div>
     </div>
     <label class="check"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
-    <button onclick="createEvent()" style="margin-top:14px">Create session</button>
+    <button onclick="createSession()" style="margin-top:14px">Create session</button>
     <div id="em"></div>
   </div>
   <div id="evList"></div>
@@ -226,7 +226,7 @@ async function loadEvents() {
 }
 $('#evSel').onchange = () => selectEvent($('#evSel').value);
 function openLive(id) { $('#evSel').value = id; selectEvent(String(id)); showTab('live'); }
-async function createEvent() {
+async function createSession() {
   try {
     const r = await api('/api/events', { body: { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value,
       late_after_min: $('#eLate').value, register_all: $('#eAll').checked } });
@@ -271,7 +271,7 @@ async function drawLive() {
   $('#missN').textContent = t.missing;
   $('#missing').innerHTML = s.missing.length ? `<table>${s.missing.map(m => `<tr><td><b>${esc(m.name)}</b><div class="id">${esc(m.username)}, ${esc(m.email)}</div></td>
     <td class="right"><button class="link" onclick="manual(${m.user_id}, '${esc(m.name).replace(/'/g, '&#39;')}')">Mark present</button></td></tr>`).join('')}</table>`
-    : `<p class="empty">${s.registered ? 'Everyone on the list is here.' : 'No students on this session yet. Add them in the Sessions tab.'}</p>`;
+    : `<p class="empty">${s.registered ? 'Everyone on the list is here.' : 'No students on this session yet. Add them in the Students tab and they join this session automatically.'}</p>`;
   $('#feedN').textContent = t.checked_in;
   $('#feed').innerHTML = s.checkins.length ? `<table>${s.checkins.map(c => `<tr><td style="width:56px" class="id">${fmtTime(c.ts)}</td>
     <td><b>${esc(c.name)}</b><div class="id">${esc(c.username)}${c.flagged ? `, ${esc(c.flag_reason)}` : ''}</div></td>

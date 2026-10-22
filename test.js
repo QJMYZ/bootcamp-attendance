@@ -135,6 +135,15 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok((await onList(future)).missing.some(m => m.username === 'SYNC1'), 're-added student is back on upcoming session');
   await T('/api/students', { rows: [{ username: 'S001', name: 'Tan Wei Ming', email: 'tan.wei.ming@example.com' }] });
 
+  // Edit a session's start time: statuses are re-checked
+  const nowSg = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour12: false }).slice(0, 5);
+  const before = (await T(`/api/events/${ev.id}/summary`)).body.checkins.filter(c => c.status === 'late').length;
+  const upd = (await T(`/api/events/${ev.id}/update`, { start_time: nowSg, late_after_min: 15 })).body;
+  const after = (await T(`/api/events/${ev.id}/summary`)).body;
+  ok(upd.ok && after.event.start_time === nowSg && after.checkins.filter(c => c.status === 'late').length === 0, `editing start time re-marks late check-ins as on time (${before} late before, ${upd.changed} changed)`);
+  ok(after.checkins.some(c => c.status === 'manual'), 'trainer-marked check-ins are left alone');
+  await T(`/api/events/${ev.id}/update`, { start_time: '09:00', late_after_min: 15 });
+
   // Multiple trainer accounts
   ok((await T('/api/trainers', { username: 'ms.tan', name: 'Ms Tan', password: 'TanPass2026' })).body.ok, 'add a second trainer');
   ok((await T('/api/trainers', { username: 'MS.TAN', name: 'Dup', password: 'whatever123' })).status === 409, 'duplicate trainer username rejected');

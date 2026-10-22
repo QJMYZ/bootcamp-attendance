@@ -112,7 +112,7 @@ async function checkIn() {
       <div class="die"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <h1>You're checked in</h1>
       <p class="who">${esc(r.name)}</p>
-      <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}</p>
+      <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}<br><span class="small">Session starts ${esc(r.start_time)}, late after ${r.late_after_min} min</span></p>
       <p class="help">You can close this page now.</p></div>`;
   } catch (e) {
     $('#m').innerHTML = `<div class="msg err" style="margin:0 0 10px">${esc(e.message)}</div>`;

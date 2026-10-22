@@ -132,15 +132,17 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 <section id="tab-events" class="hidden">
   <h1>Sessions</h1><p class="sub">Each bootcamp day or class is a session with its own QR code.</p>
   <div class="block">
-    <h2>New session</h2>
+    <h2 id="eTitle">New session</h2>
     <div class="fields">
       <div style="flex-basis:260px"><label for="eName">Name</label><input id="eName" placeholder="Bootcamp Day 1"></div>
       <div><label for="eDate">Date</label><input id="eDate" type="date"></div>
-      <div><label for="eStart">Starts at</label><input id="eStart" type="time" value="09:00"></div>
+      <div><label for="eStart">Starts at</label><input id="eStart" type="time" required></div>
       <div><label for="eLate">Late after (minutes)</label><input id="eLate" type="number" min="0" value="15"></div>
     </div>
-    <label class="check"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
-    <button onclick="createSession()" style="margin-top:14px">Create session</button>
+    <p class="small muted" style="margin:8px 0 0">Students who check in more than the "late after" minutes past the start time are marked late.</p>
+    <label class="check" id="eAllRow"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
+    <button id="eSave" onclick="saveSession()" style="margin-top:14px">Create session</button>
+    <button id="eCancel" class="btn-quiet hidden" onclick="cancelEdit()" style="margin-top:14px">Cancel</button>
     <div id="em"></div>
   </div>
   <div id="evList"></div>
@@ -247,19 +249,42 @@ async function loadEvents() {
     <td class="num">${e.registered}</td><td class="num">${e.checked_in}</td>
     <td>${e.checkin_open ? '<span class="chip open">Open</span>' : '<span class="chip">Closed</span>'}</td>
     <td class="right"><button class="link" onclick="openLive(${e.id})">View live</button>
+      <button class="link" onclick="editSession(${e.id})">Edit</button>
       <button class="link" onclick="registerAll(${e.id})">Add all students</button>
       <button class="link danger" onclick="delEvent(${e.id})">Delete</button></td></tr>`).join('')}</table></div>` : '';
   if ($('#evSel').value != current) selectEvent($('#evSel').value);
 }
 $('#evSel').onchange = () => selectEvent($('#evSel').value);
 function openLive(id) { $('#evSel').value = id; selectEvent(String(id)); showTab('live'); }
-async function createSession() {
+let editingId = null;
+async function saveSession() {
+  if (!$('#eStart').value) { $('#em').innerHTML = '<div class="msg err">Choose the time the session starts</div>'; return; }
+  const body = { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value, late_after_min: $('#eLate').value };
   try {
-    const r = await api('/api/events', { body: { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value,
-      late_after_min: $('#eLate').value, register_all: $('#eAll').checked } });
-    $('#em').innerHTML = ''; $('#eName').value = '';
-    toast('Session created'); await loadEvents(); openLive(r.id);
+    if (editingId) {
+      const r = await api(`/api/events/${editingId}/update`, { body });
+      toast(r.changed ? `Session saved. ${plural(r.changed, 'check-in')} re-marked on time / late.` : 'Session saved');
+      const id = editingId; cancelEdit(); await loadEvents(); openLive(id);
+    } else {
+      const r = await api('/api/events', { body: { ...body, register_all: $('#eAll').checked } });
+      $('#em').innerHTML = ''; $('#eName').value = ''; $('#eStart').value = '';
+      toast('Session created'); await loadEvents(); openLive(r.id);
+    }
   } catch (e) { $('#em').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+function editSession(id) {
+  const e = events.find(x => x.id === id); if (!e) return;
+  editingId = id;
+  $('#eName').value = e.name; $('#eDate').value = e.date; $('#eStart').value = e.start_time; $('#eLate').value = e.late_after_min;
+  $('#eTitle').textContent = `Edit "${e.name}"`; $('#eSave').textContent = 'Save changes';
+  $('#eCancel').classList.remove('hidden'); $('#eAllRow').classList.add('hidden'); $('#em').innerHTML = '';
+  $('#eTitle').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#eStart').focus();
+}
+function cancelEdit() {
+  editingId = null;
+  $('#eName').value = ''; $('#eStart').value = ''; $('#eLate').value = 15; $('#eDate').value = today();
+  $('#eTitle').textContent = 'New session'; $('#eSave').textContent = 'Create session';
+  $('#eCancel').classList.add('hidden'); $('#eAllRow').classList.remove('hidden'); $('#em').innerHTML = '';
 }
 async function registerAll(id) { const r = await api(`/api/events/${id}/register-all`, { body: {} }); toast(`${plural(r.added, 'student')} added to the list`); loadEvents(); }
 async function delEvent(id) {
@@ -286,7 +311,7 @@ function refreshLive() { clearTimeout(pending); pending = setTimeout(drawLive, 1
 async function drawLive() {
   const s = await api(`/api/events/${current}/summary`), t = s.totals, ev = s.event;
   lastSummary = s;
-  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min
+  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
     ${ev.checkin_open ? '<span class="chip open">Check-in open</span>' : '<span class="chip">Check-in closed</span>'}`;
   $('#openBtn').textContent = ev.checkin_open ? 'Close check-in' : 'Open check-in';
   $('#openBtn').className = ev.checkin_open ? 'btn-stop' : 'btn-go';

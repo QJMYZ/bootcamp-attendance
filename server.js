@@ -235,6 +235,22 @@ app.post('/api/events', auth('trainer'), h(async (req, res) => {
   if (register_all) await run(REG_ALL, [id]);
   res.json({ id });
 }));
+// Edit a session. Changing the start time or late window re-checks everyone's on-time / late status.
+app.post('/api/events/:id/update', auth('trainer'), h(async (req, res) => {
+  const ev = await get('SELECT * FROM events WHERE id=?', [num(req.params.id) || 0]);
+  if (!ev) return res.status(404).json({ error: 'Session not found' });
+  const name = String(req.body?.name ?? ev.name).trim(), date = String(req.body?.date ?? ev.date);
+  const start_time = String(req.body?.start_time ?? ev.start_time), late = num(req.body?.late_after_min ?? ev.late_after_min) || 0;
+  if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start_time)) return res.status(400).json({ error: 'Name, date and start time are required' });
+  await run('UPDATE events SET name=?,date=?,start_time=?,late_after_min=? WHERE id=?', [name, date, start_time, late, ev.id]);
+  let changed = 0;
+  for (const c of await all("SELECT id,ts,status FROM checkins WHERE event_id=? AND status IN ('present','late')", [ev.id])) {
+    const status = toMin(localTime(new Date(c.ts))) > toMin(start_time) + late ? 'late' : 'present';
+    if (status !== c.status) { await run('UPDATE checkins SET status=? WHERE id=?', [status, c.id]); changed++; }
+  }
+  broadcast(ev.id, { type: 'refresh' });
+  res.json({ ok: true, changed });
+}));
 app.post('/api/events/:id/open', auth('trainer'), h(async (req, res) => {
   await run('UPDATE events SET checkin_open=? WHERE id=?', [req.body.open ? 1 : 0, req.params.id]);
   broadcast(req.params.id, { type: 'refresh' });
@@ -310,7 +326,7 @@ app.post('/api/checkin', h(async (req, res) => {
     String(req.get('user-agent') || '').slice(0, 200), flagged, flag_reason]);
   if (!ins.changes) return res.status(409).json({ error: `${student.name} is already checked in.` });  // double-tap
   broadcast(ev.id, { type: 'checkin' });
-  res.json({ ok: true, status, name: student.name, event: ev.name, time: localTime() });
+  res.json({ ok: true, status, name: student.name, event: ev.name, time: localTime(), start_time: ev.start_time, late_after_min: num(ev.late_after_min || 0) });
 }));
 
 // Trainer can undo a check-in (e.g. a student picked the wrong name)

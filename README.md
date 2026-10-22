@@ -42,6 +42,8 @@ Updating later: change the code on GitHub and Render redeploys by itself.
 
 ## Before the first real event
 
+Trainer sign-ins: **Account** tab > **Trainer accounts** > **Add a trainer** gives each trainer their own username and password. Any trainer can set a new password for another trainer or remove them (you can't remove yourself or the last trainer).
+
 1. **My account** tab: change the trainer password if you did not set `ADMIN_PASSWORD`.
 2. **Students** tab: key in **Student ID, Name and Email** for each student, or paste a list (`studentID, name, email`, one per line, or three columns copied from Excel).
 3. **Events** tab: create the session and tick "Register all active students". These are the names students see when they scan.
@@ -86,7 +88,7 @@ npm start         # http://localhost:3000, login admin / admin123
 
 ## Tests
 
-`npm test` runs 33 end-to-end checks. Set `DATABASE_URL` to run them against PostgreSQL. Both pass.
+`npm test` runs 49 end-to-end checks. Set `DATABASE_URL` to run them against PostgreSQL. Both pass.
 
 ## Files
 

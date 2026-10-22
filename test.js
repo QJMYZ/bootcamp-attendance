@@ -104,6 +104,22 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); cond 
   ok(typeof csv.body === 'string' && csv.body.includes('S001') && csv.body.includes('absent') && csv.body.includes('@example.com'), 'CSV export has present and absent rows with email');
   ok((await T('/api/me/name', { name: 'Ms Tan (Trainer)' })).body.name === 'Ms Tan (Trainer)' && (await T('/api/me')).body.name === 'Ms Tan (Trainer)', 'trainer changes display name');
   ok((await T('/api/me/name', { name: '   ' })).status === 400, 'blank display name rejected');
+  // Multiple trainer accounts
+  ok((await T('/api/trainers', { username: 'ms.tan', name: 'Ms Tan', password: 'TanPass2026' })).body.ok, 'add a second trainer');
+  ok((await T('/api/trainers', { username: 'MS.TAN', name: 'Dup', password: 'whatever123' })).status === 409, 'duplicate trainer username rejected');
+  ok((await T('/api/trainers', { username: 'S001', name: 'Clash', password: 'whatever123' })).status === 409, 'username that is a student ID rejected');
+  ok((await T('/api/trainers', { username: 'mr lee', name: 'Mr Lee', password: 'whatever123' })).status === 400, 'username with a space rejected');
+  ok((await T('/api/trainers', { username: 'mr.lee', name: 'Mr Lee', password: 'short' })).status === 400, 'short trainer password rejected');
+  const T2 = C();
+  ok((await T2('/api/login', { username: 'ms.tan', password: 'TanPass2026' })).status === 200, 'second trainer signs in with own username and password');
+  ok((await T2('/api/events')).status === 200, 'second trainer can see sessions');
+  const tl = (await T('/api/trainers')).body;
+  const tanId = tl.find(x => x.username === 'ms.tan').id, adminId = tl.find(x => x.username === 'admin').id;
+  ok(tl.length === 2 && tl.find(x => x.username === 'admin').me, 'trainer list shows both, marks "you"');
+  ok((await T(`/api/trainers/${tanId}/password`, { password: 'NewTanPass99' })).body.ok, 'admin sets a new password for Ms Tan');
+  ok((await T2('/api/events')).status === 401 && (await C()('/api/login', { username: 'ms.tan', password: 'NewTanPass99' })).status === 200, 'old sign-in ends, new password works');
+  ok((await T(`/api/trainers/${adminId}`, null, 'DELETE')).status === 400, "can't remove your own account");
+  ok((await T(`/api/trainers/${tanId}`, null, 'DELETE')).body.ok && (await C()('/api/login', { username: 'ms.tan', password: 'NewTanPass99' })).status === 401, 'removed trainer can no longer sign in');
   ok((await T('/api/me/password', { oldPassword: 'admin123', newPassword: 'short' })).status === 400, 'trainer password must be 8+ characters');
   ok((await T('/api/me/password', { oldPassword: 'admin123', newPassword: 'Bootcamp2026!' })).status === 200, 'trainer password changed');
 

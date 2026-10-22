@@ -180,7 +180,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Your name on the dashboard, and the trainer password.</p>
+  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
   <div class="block" style="max-width:520px">
     <h2>Display name</h2>
     <p class="small muted">Shown at the top right of the dashboard.</p>
@@ -198,6 +198,20 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
     <div id="am"></div>
   </div>
+
+  <div class="block">
+    <h2>Trainer accounts</h2>
+    <p class="small muted">Each trainer signs in with their own username and password. Every trainer can see and run all sessions.</p>
+    <div id="trList" style="margin-top:8px"></div>
+    <h3 style="margin-top:22px">Add a trainer</h3>
+    <form class="fields" onsubmit="event.preventDefault(); addTrainer()">
+      <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
+      <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
+      <div><label for="tPass">Password</label><input id="tPass" type="password" autocomplete="new-password" placeholder="At least 8 characters" required></div>
+      <button>Add trainer</button>
+    </form>
+    <div id="tm"></div>
+  </div>
 </section>
 </main>
 
@@ -212,6 +226,7 @@ function showTab(name) {
   document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hidden', s.id !== 'tab-' + name));
   if (name === 'students') loadStudents();
   if (name === 'reports') loadReport();
+  if (name === 'account') loadTrainers();
   if (name === 'events' || name === 'live') loadEvents();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -356,6 +371,32 @@ async function loadReport() {
 }
 
 // ---- account ----
+// ---- trainer accounts ----
+async function loadTrainers() {
+  const list = await api('/api/trainers');
+  $('#trList').innerHTML = `<table><tr><th>Name</th><th>Username</th><th></th></tr>${list.map(t => `<tr>
+    <td><b>${esc(t.name)}</b>${t.me ? ' <span class="chip">You</span>' : ''}</td><td class="id">${esc(t.username)}</td>
+    <td class="right"><button class="link" onclick="resetTrainerPw(${t.id}, '${esc(t.name).replace(/'/g, '&#39;')}')">Set new password</button>
+    ${t.me ? '' : `<button class="link danger" onclick="removeTrainer(${t.id}, '${esc(t.name).replace(/'/g, '&#39;')}')">Remove</button>`}</td></tr>`).join('')}</table>`;
+}
+async function addTrainer() {
+  try {
+    const r = await api('/api/trainers', { body: { username: $('#tUser').value, name: $('#tName').value, password: $('#tPass').value } });
+    $('#tm').innerHTML = ''; $('#tUser').value = $('#tName').value = $('#tPass').value = '';
+    toast(`${r.name} can now sign in as "${r.username}"`); loadTrainers();
+  } catch (e) { $('#tm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+async function resetTrainerPw(id, name) {
+  const pw = prompt(`New password for ${name} (at least 8 characters):`);
+  if (pw == null) return;
+  try { await api(`/api/trainers/${id}/password`, { body: { password: pw } }); toast(`Password changed for ${name}`); }
+  catch (e) { $('#tm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+async function removeTrainer(id, name) {
+  if (!confirm(`Remove ${name}? They will no longer be able to sign in.`)) return;
+  try { await api(`/api/trainers/${id}`, { method: 'DELETE' }); toast(`${name} removed`); loadTrainers(); }
+  catch (e) { $('#tm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
 async function changeName() {
   try {
     const r = await api('/api/me/name', { body: { name: $('#aName').value } });

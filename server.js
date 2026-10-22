@@ -109,6 +109,43 @@ app.post('/api/logout', h(async (req, res) => {
   res.json({ ok: true });
 }));
 app.get('/api/me', auth(), (req, res) => res.json(req.user));
+// ---------- trainer accounts: every trainer signs in with their own username and password ----------
+app.get('/api/trainers', auth('trainer'), h(async (req, res) => {
+  const list = await all("SELECT id,username,name FROM users WHERE role='trainer' AND active=1 ORDER BY LOWER(name)");
+  res.json(list.map(t => ({ ...t, me: t.id === req.user.id })));
+}));
+app.post('/api/trainers', auth('trainer'), h(async (req, res) => {
+  const username = String(req.body?.username || '').trim(), name = String(req.body?.name || '').trim(), password = String(req.body?.password || '');
+  if (!/^[A-Za-z0-9._-]{3,30}$/.test(username)) return res.status(400).json({ error: 'Username must be 3 to 30 letters, numbers, dots, dashes or underscores, with no spaces' });
+  if (!name || name.length > 60) return res.status(400).json({ error: 'Enter a display name of up to 60 characters' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const existing = await get('SELECT id,role,active FROM users WHERE LOWER(username)=LOWER(?)', [username]);
+  if (existing && (existing.active || existing.role !== 'trainer')) return res.status(409).json({ error: `The username "${username}" is already taken` });
+  const { salt, hash } = hashPassword(password);
+  if (existing) await run('UPDATE users SET active=1,name=?,salt=?,pass_hash=? WHERE id=?', [name, salt, hash, existing.id]);   // re-adding a removed trainer
+  else await createUser({ username, name, role: 'trainer', password });
+  res.json({ ok: true, username, name });
+}));
+app.post('/api/trainers/:id/password', auth('trainer'), h(async (req, res) => {
+  const t = await get("SELECT id,name FROM users WHERE id=? AND role='trainer' AND active=1", [num(req.params.id) || 0]);
+  if (!t) return res.status(404).json({ error: 'Trainer not found' });
+  const password = String(req.body?.password || '');
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const { salt, hash } = hashPassword(password);
+  await run('UPDATE users SET salt=?,pass_hash=? WHERE id=?', [salt, hash, t.id]);
+  if (t.id !== req.user.id) await run('DELETE FROM sessions WHERE user_id=?', [t.id]);   // sign them out everywhere
+  res.json({ ok: true });
+}));
+app.delete('/api/trainers/:id', auth('trainer'), h(async (req, res) => {
+  const id = num(req.params.id) || 0;
+  if (id === req.user.id) return res.status(400).json({ error: "You can't remove your own account. Ask another trainer to do it." });
+  const count = num((await get("SELECT CAST(COUNT(*) AS INTEGER) AS n FROM users WHERE role='trainer' AND active=1")).n);
+  if (count <= 1) return res.status(400).json({ error: 'There must always be at least one trainer account' });
+  const r = await run("UPDATE users SET active=0 WHERE id=? AND role='trainer'", [id]);
+  await run('DELETE FROM sessions WHERE user_id=?', [id]);
+  res.json({ ok: r.changes === 1 });
+}));
+
 // Change the name shown at the top right of the dashboard
 app.post('/api/me/name', auth('trainer'), h(async (req, res) => {
   const name = String(req.body?.name || '').trim();

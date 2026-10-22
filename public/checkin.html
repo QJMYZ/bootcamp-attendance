@@ -86,7 +86,7 @@ async function load() {
     <label for="find">Find your name</label>
     <div class="search">${ICONS.search}<input id="find" type="search" placeholder="Start typing your name" autocomplete="off" enterkeyhint="search"></div>
     <ul class="names card" id="names" role="radiogroup" aria-label="Class list"></ul>
-    <p class="help">Name not on the list? Tell the trainer and they will add you.</p>
+    <p class="help">Name not on the list? Please inform SEMI staff.</p>
     <div class="bar"><div class="inner"><div id="m" aria-live="assertive"></div><button id="go"></button></div></div>`;
   $('#find').oninput = drawNames;
   $('#go').onclick = checkIn;

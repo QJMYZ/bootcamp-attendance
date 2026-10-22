@@ -326,7 +326,7 @@ app.post('/api/checkin', h(async (req, res) => {
   // One phone checks in one student per event
   const other = await get(`SELECT u.username,u.name FROM checkins c JOIN users u ON u.id=c.user_id
     WHERE c.event_id=? AND c.device_id=? AND c.user_id<>?`, [ev.id, req.deviceId, student.id]);
-  if (other) return reject(`Same phone as ${other.name} (${other.username})`, `This phone already checked in ${other.name}. Please see the trainer.`, 403);
+  if (other) return reject(`Same phone as ${other.name} (${other.username})`, `This phone already checked in ${other.name}. Please approach SEMI staff.`, 403);
 
   let flagged = 0, flag_reason = null;
   if (!(await get('SELECT 1 AS x FROM registrations WHERE event_id=? AND user_id=?', [ev.id, student.id]))) {

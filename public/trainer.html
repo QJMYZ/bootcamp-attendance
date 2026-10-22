@@ -1,84 +1,111 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard | SEMI Bootcamp Attendance</title>
+<meta name="theme-color" content="#F2F5F3">
+<script>(function(){var t;try{t=localStorage.getItem('att_theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-/* ---- top bar ---- */
-.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
-.top .in{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:28px;height:64px}
-.top .logo{height:26px;width:auto}
-.tabs{display:flex;gap:4px;height:100%;overflow-x:auto;scrollbar-width:none}
-.tabs button{height:100%;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--ink-2);padding:0 12px;font-weight:600}
-.tabs button:hover{background:none;color:var(--ink)}
+/* ---- top bar (frosted) ---- */
+.top{background:var(--bar);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.top .in{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:26px;height:64px}
+.top .logo{height:24px;width:auto}
+.tabs{display:flex;gap:2px;height:100%;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{height:100%;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--ink-2);padding:0 12px;font-weight:600;gap:7px;box-shadow:none !important}
+.tabs button:hover{background:none;border-color:transparent;color:var(--ink)}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--green)}
 .who{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:14px;white-space:nowrap}
+.who .av{background:var(--green-tint);color:var(--green-ink)}
+.who .out{padding:8px 12px}
 main{max-width:1240px;margin:0 auto;padding:28px 24px 64px}
 section > h1{margin-bottom:4px}
 .sub{color:var(--ink-2);margin-bottom:22px}
 
-/* ---- live: event bar ---- */
-.evbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;margin-bottom:24px}
+/* ---- live: header ---- */
+.evbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;margin-bottom:20px}
 .evpick{flex:1 1 320px;min-width:0}
-.evpick select{width:auto;appearance:none;border:0;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none' stroke='%231E2328' stroke-width='2.2'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E") right 4px center no-repeat;
+.evpick select{width:auto;appearance:none;border:0;box-shadow:none;background:transparent;color:var(--ink);
   padding:0 30px 0 0;font:700 28px/1.2 var(--display);letter-spacing:-.01em;cursor:pointer;max-width:100%;text-overflow:ellipsis}
-.evpick .meta{color:var(--ink-2);margin:6px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.evpick .pick{position:relative;display:inline-block;max-width:100%}
+.evpick .pick::after{content:"";position:absolute;right:6px;top:50%;width:9px;height:9px;border:solid var(--ink-2);border-width:0 2.2px 2.2px 0;transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.evpick .meta{color:var(--ink-2);margin:6px 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 
-/* ---- live: overview ring + missing list ---- */
-.live{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:32px;align-items:start}
-.overview{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px}
-.missing-block{margin-top:30px}
-.feed-block{margin-top:34px}
-.missing-block h2,.feed-block h2{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
-.missing-block h2 small,.feed-block h2 small{font:600 15px var(--text);color:var(--ink-2)}
-.missing-block .scroll{max-height:440px;overflow:auto}
-.feed-block .scroll{max-height:460px;overflow:auto}
-.missing-block table td{padding:9px 8px}
-.blocked{margin-top:30px;border-top:1px solid var(--line);padding-top:16px}
-.blocked summary{cursor:pointer;font-weight:600}
-.empty{color:var(--ink-2);padding:12px 0}
-.nolive{padding:60px 0;text-align:center;color:var(--ink-2)}
+/* ---- live: summary strip ---- */
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.stat{padding:14px 18px}
+.stat b{display:block;font:700 26px/1.2 var(--display);color:var(--ink)}
+.stat span{font-size:13px;color:var(--ink-2)}
 
-/* ---- forms on other tabs ---- */
-.block{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:24px}
+/* ---- live: ring + lists ---- */
+.live{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:18px;align-items:start}
+.live > *{min-width:0}
+.overview{padding:24px 22px}
+.panel{padding:18px 22px}
+.panel h2{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.panel h2 small{font:600 14px var(--text);color:var(--ink-2)}
+.missing-block .scroll{max-height:470px;overflow:auto}
+.feed-block{margin-top:18px}
+.feed-block .scroll{max-height:460px;overflow:auto}
+.blocked{margin-top:18px;padding:14px 22px}
+.blocked summary{cursor:pointer;font-weight:600}
+.empty{color:var(--ink-2);padding:14px 0}
+.nolive{padding:56px 24px;text-align:center;color:var(--ink-2)}
+.nolive h2{margin-bottom:6px}
+
+/* ---- other tabs ---- */
+.block{padding:22px 24px;margin-bottom:20px}
 .block h2{margin-bottom:4px}
+.block.table{padding:6px 22px}
 .fields{display:flex;flex-wrap:wrap;gap:0 14px;align-items:flex-end}
 .fields > div{flex:1 1 170px}
 .fields > button{margin-top:14px}
 .check{display:flex;align-items:center;gap:8px;font-weight:500}
-.check input{width:18px;height:18px;margin:0;accent-color:var(--green-ink)}
+.check input{width:18px;height:18px;margin:0;accent-color:var(--green)}
 details.paste{margin-top:18px}
 details.paste summary{cursor:pointer;font-weight:600;color:var(--ink)}
-code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
-.repnums{display:flex;flex-wrap:wrap;gap:12px 40px;margin:8px 0 6px}
-.repnums b{display:block;font:700 30px/1.1 var(--display)}
-.repnums span{font-size:13px;color:var(--ink-2)}
+code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5px;border-radius:5px;font-size:13px}
+.repnums{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
 .right{text-align:right;white-space:nowrap}
+.listhead{display:flex;align-items:baseline;gap:8px;margin:4px 0 10px}
+.listhead small{font:600 14px var(--text);color:var(--ink-2)}
 
-@media(max-width:920px){
+@media(max-width:980px){
   .live{grid-template-columns:1fr}
-  .overview{max-width:440px}
+  .strip,.repnums{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media(max-width:640px){
-  .top .in{padding:0 16px;gap:14px}
-  .who span{display:none}
+@media(max-width:700px){
+  .top .in{padding:0 14px;gap:12px}
+  .who #who,.who .out span{display:none}
+  .who .av{display:none}
+  .tabs button{padding:0 9px}
+  .tabs button .lbl{display:none}
   main{padding:20px 16px 48px}
   .evpick select{font-size:22px}
+  .block.table{padding:4px 12px;overflow-x:auto}
+}
+@media(max-width:440px){
+  .who .icon-btn{display:none}   /* light/dark switch stays in the Account tab */
+  .top .logo{height:20px}
 }
 </style></head>
 <body>
 <header class="top"><div class="in">
-  <img class="logo" src="semi-logo.png" alt="SEMI">
+  <img class="logo only-light" src="semi-logo.png" alt="SEMI"><img class="logo only-dark" src="semi-logo-white.png" alt="SEMI">
   <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="live" aria-selected="true">Live</button>
-    <button role="tab" data-tab="events" aria-selected="false">Sessions</button>
-    <button role="tab" data-tab="students" aria-selected="false">Students</button>
-    <button role="tab" data-tab="reports" aria-selected="false">Reports</button>
-    <button role="tab" data-tab="account" aria-selected="false">Account</button>
+    <button role="tab" data-tab="live" aria-selected="true"><span data-ico="live"></span><span class="lbl">Live</span></button>
+    <button role="tab" data-tab="events" aria-selected="false"><span data-ico="cal"></span><span class="lbl">Sessions</span></button>
+    <button role="tab" data-tab="students" aria-selected="false"><span data-ico="people"></span><span class="lbl">Students</span></button>
+    <button role="tab" data-tab="reports" aria-selected="false"><span data-ico="chart"></span><span class="lbl">Reports</span></button>
+    <button role="tab" data-tab="account" aria-selected="false"><span data-ico="user"></span><span class="lbl">Account</span></button>
   </nav>
-  <div class="who"><span id="who"></span><button class="btn-quiet" onclick="logout()">Sign out</button></div>
+  <div class="who">
+    <button class="icon-btn" data-theme-icon onclick="toggleTheme()" aria-label="Switch light or dark mode"></button>
+    <span class="av" id="whoAv"></span><span id="who"></span>
+    <button class="btn-quiet out" onclick="logout()" title="Sign out"><span data-ico="out"></span><span>Sign out</span></button>
+  </div>
 </div></header>
 
 <main>
@@ -87,44 +114,44 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
   <div class="evbar">
     <div class="evpick">
       <label for="evSel" class="sr">Session</label>
-      <select id="evSel"></select>
+      <span class="pick"><select id="evSel"></select></span>
       <p class="meta" id="evMeta"></p>
     </div>
     <div class="actions" id="evActions">
-      <button id="openBtn" class="btn-go" onclick="toggleOpen()">Open check-in</button>
-      <a class="btn btn-quiet" id="qrLink" target="_blank">Show QR screen</a>
-      <a class="btn btn-quiet" id="csvLink">Download CSV</a>
-      <button class="btn-quiet" onclick="resetQr()">Reset QR</button>
+      <button id="openBtn" onclick="toggleOpen()">Open check-in</button>
+      <a class="btn btn-quiet" id="qrLink" target="_blank"><span data-ico="qr"></span>Show QR screen</a>
+      <a class="btn btn-quiet" id="csvLink"><span data-ico="download"></span>Download CSV</a>
+      <button class="btn-quiet" onclick="resetQr()" title="Make a new QR code"><span data-ico="refresh"></span>Reset QR</button>
     </div>
   </div>
 
   <div id="liveBody" class="hidden">
+    <div class="strip" id="strip"></div>
     <div class="live">
-      <div class="overview">
+      <div class="card overview">
         <div class="ring" id="ring"></div>
         <ul class="ring-key" id="ringKey"></ul>
       </div>
-      <div>
-        <div class="missing-block" style="margin-top:0">
-          <h2>Not here yet <small id="missN"></small></h2>
-          <div class="scroll" id="missing"></div>
-        </div>
+      <div class="card panel missing-block">
+        <h2>Not here yet <small id="missN"></small></h2>
+        <div class="scroll" id="missing"></div>
       </div>
     </div>
 
-    <div class="feed-block">
+    <div class="card panel feed-block">
       <h2>Checked in <small id="feedN"></small></h2>
       <div class="scroll" id="feed"></div>
     </div>
 
-    <details class="blocked">
+    <details class="card blocked">
       <summary>Blocked check-ins (<span id="susN">0</span>)</summary>
       <p class="small muted" style="margin-top:8px">Old or fake QR codes, names checked in twice, and one phone used for two names.</p>
       <div id="sus"></div>
     </details>
   </div>
-  <div id="noEvents" class="nolive hidden">
+  <div id="noEvents" class="card nolive hidden">
     <h2>No sessions yet</h2><p>Create the first session in the Sessions tab, then come back here to open check-in.</p>
+    <button onclick="showTab('events')" style="margin-top:6px"><span data-ico="plus"></span>Create a session</button>
   </div>
 </section>
 
@@ -157,7 +184,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
       <div><label for="sId">Student ID</label><input id="sId" placeholder="S001" required></div>
       <div style="flex-basis:220px"><label for="sName">Name</label><input id="sName" placeholder="Tan Wei Ming" required></div>
       <div style="flex-basis:240px"><label for="sEmail">Email</label><input id="sEmail" type="email" placeholder="weiming@example.com" required></div>
-      <button>Add student</button>
+      <button><span data-ico="plus"></span>Add student</button>
     </form>
     <details class="paste"><summary>Add a whole class at once</summary>
       <p class="small muted" style="margin-top:8px">One student per line as <code>ID, name, email</code>, or copy the three columns straight from Excel.</p>
@@ -166,14 +193,14 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
     </details>
     <div id="sm"></div>
   </div>
-  <h2 style="margin-bottom:8px">Student list <small class="muted" id="stuN" style="font:600 15px var(--text)"></small></h2>
+  <h2 class="listhead">Student list <small id="stuN"></small></h2>
   <div id="stuList"></div>
 </section>
 
 <!-- REPORTS -->
 <section id="tab-reports" class="hidden">
   <h1>Reports</h1><p class="sub">Attendance totals for one day across all its sessions.</p>
-  <div class="fields" style="max-width:420px;margin-bottom:24px">
+  <div class="fields" style="max-width:420px;margin-bottom:20px">
     <div><label for="rDate">Day</label><input id="rDate" type="date"></div>
     <button onclick="loadReport()">Show report</button>
   </div>
@@ -183,6 +210,11 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
   <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
+  <div class="block" style="max-width:520px">
+    <h2>Appearance</h2>
+    <p class="small muted">Light or dark mode for this device. Students' phones follow their own phone setting.</p>
+    <button class="btn-quiet" onclick="toggleTheme()" style="margin-top:8px"><span data-theme-icon></span>Switch light / dark</button>
+  </div>
   <div class="block" style="max-width:520px">
     <h2>Display name</h2>
     <p class="small muted">Shown at the top right of the dashboard.</p>
@@ -210,7 +242,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
       <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
       <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
       <div><label for="tPass">Password</label><input id="tPass" type="password" autocomplete="new-password" placeholder="At least 8 characters" required></div>
-      <button>Add trainer</button>
+      <button><span data-ico="plus"></span>Add trainer</button>
     </form>
     <div id="tm"></div>
   </div>
@@ -220,6 +252,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:13px}
 <script src="common.js"></script>
 <script>
 let events = [], current = null, es = null, lastSummary = null;
+document.querySelectorAll('[data-ico]').forEach(el => { el.outerHTML = ICONS[el.dataset.ico]; });
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 // ---- tabs ----
@@ -243,7 +276,7 @@ async function loadEvents() {
   $('#evSel').value = keep && events.some(e => e.id == keep) ? keep : (todays?.id || events[0]?.id || '');
   $('#noEvents').classList.toggle('hidden', events.length > 0);
   $('#evActions').classList.toggle('hidden', !events.length);
-  $('#evList').innerHTML = events.length ? `<div class="block" style="padding:8px 24px"><table>
+  $('#evList').innerHTML = events.length ? `<div class="block table"><table>
     <tr><th>Session</th><th>Date</th><th>Starts</th><th class="num">On list</th><th class="num">Checked in</th><th>Check-in</th><th></th></tr>
     ${events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${fmtDate(e.date)}</td><td>${e.start_time}</td>
     <td class="num">${e.registered}</td><td class="num">${e.checked_in}</td>
@@ -313,22 +346,26 @@ async function drawLive() {
   lastSummary = s;
   $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
     ${ev.checkin_open ? '<span class="chip open">Check-in open</span>' : '<span class="chip">Check-in closed</span>'}`;
-  $('#openBtn').textContent = ev.checkin_open ? 'Close check-in' : 'Open check-in';
-  $('#openBtn').className = ev.checkin_open ? 'btn-stop' : 'btn-go';
+  $('#openBtn').innerHTML = ev.checkin_open ? `${ICONS.lock}Close check-in` : `${ICONS.unlock}Open check-in`;
+  $('#openBtn').className = ev.checkin_open ? 'btn-stop' : '';
+  const last = s.checkins[0];
+  $('#strip').innerHTML = [[`${t.checked_in} / ${s.registered}`, 'Checked in'], [`${t.rate}%`, 'Attendance so far'],
+    [t.late, 'Late'], [last ? fmtTime(last.ts) : 'None yet', 'Last check-in']]
+    .map(([v, l]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('');
 
   // overview ring: how many are checked in, split by on time / late / marked
   drawRing($('#ring'), t, s.registered);
   $('#ringKey').innerHTML = [['var(--green)', 'On time', t.present], ['var(--amber)', 'Late', t.late],
-    ['var(--green-ink)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
+    ['var(--marked)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
     .map(([c, l, n]) => `<li><i style="background:${c}"></i>${l}<b>${n}</b></li>`).join('');
 
   $('#missN').textContent = t.missing;
-  $('#missing').innerHTML = s.missing.length ? `<table>${s.missing.map(m => `<tr><td><b>${esc(m.name)}</b><div class="id">${esc(m.username)}, ${esc(m.email)}</div></td>
+  $('#missing').innerHTML = s.missing.length ? `<table>${s.missing.map(m => `<tr><td><div class="person">${avatar(m.name)}<div><b>${esc(m.name)}</b><div class="id">${esc(m.username)}, ${esc(m.email)}</div></div></div></td>
     <td class="right"><button class="link" onclick="manual(${m.user_id}, '${esc(m.name).replace(/'/g, '&#39;')}')">Mark present</button></td></tr>`).join('')}</table>`
     : `<p class="empty">${s.registered ? 'Everyone on the list is here.' : 'No students on this session yet. Add them in the Students tab and they join this session automatically.'}</p>`;
   $('#feedN').textContent = t.checked_in;
   $('#feed').innerHTML = s.checkins.length ? `<table>${s.checkins.map(c => `<tr><td style="width:56px" class="id">${fmtTime(c.ts)}</td>
-    <td><b>${esc(c.name)}</b><div class="id">${esc(c.username)}${c.flagged ? `, ${esc(c.flag_reason)}` : ''}</div></td>
+    <td><div class="person">${avatar(c.name)}<div><b>${esc(c.name)}</b><div class="id">${esc(c.username)}${c.flagged ? `, ${esc(c.flag_reason)}` : ''}</div></div></div></td>
     <td><span class="chip ${c.status}">${c.status === 'manual' ? 'Marked' : c.status === 'late' ? 'Late' : 'On time'}</span></td>
     <td class="right"><button class="link" onclick="undo(${c.user_id}, '${esc(c.name).replace(/'/g, '&#39;')}')" title="Remove this check-in, e.g. wrong name picked">Undo</button></td></tr>`).join('')}</table>`
     : `<p class="empty">${ev.checkin_open ? 'Waiting for the first scan.' : 'Open check-in and show the QR screen to start.'}</p>`;
@@ -359,8 +396,8 @@ async function manual(uid, name) {
 async function loadStudents() {
   const list = (await api('/api/students')).filter(s => s.active);
   $('#stuN').textContent = list.length;
-  $('#stuList').innerHTML = list.length ? `<div class="block" style="padding:8px 24px"><table><tr><th>ID</th><th>Name</th><th>Email</th><th></th></tr>${list.map(s =>
-    `<tr><td class="id">${esc(s.username)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.email)}</td>
+  $('#stuList').innerHTML = list.length ? `<div class="block table"><table><tr><th>Name</th><th>ID</th><th>Email</th><th></th></tr>${list.map(s =>
+    `<tr><td><div class="person">${avatar(s.name)}<b>${esc(s.name)}</b></div></td><td class="id">${esc(s.username)}</td><td>${esc(s.email)}</td>
     <td class="right"><button class="link danger" onclick="rmStu(${s.id}, '${esc(s.name).replace(/'/g, '&#39;')}')">Remove</button></td></tr>`).join('')}</table></div>`
     : '<p class="empty">No students yet. Add them above, one at a time or a whole class at once.</p>';
 }
@@ -393,14 +430,14 @@ async function rmStu(id, name) { if (confirm(`Remove ${name} from the student li
 // ---- reports ----
 async function loadReport() {
   const r = await api(`/api/reports/daily?date=${$('#rDate').value || today()}`), t = r.totals;
-  const n = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
-  $('#report').innerHTML = `<div class="block"><h2>${fmtDate(r.date)}</h2>
-    <div class="repnums">${n(t.checked_in, 'Check-ins') + n(t.unique_students, 'Different students') + n(t.late, 'Late') + n(t.missing, 'Absent') + n(t.blocked_attempts, 'Blocked check-ins')}</div></div>
-    ${r.events.length ? `<div class="block" style="padding:8px 24px"><table><tr><th>Session</th><th>Starts</th><th class="num">On list</th><th class="num">On time</th><th class="num">Late</th>
+  const n = (v, l) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`;
+  $('#report').innerHTML = `<h2 class="listhead">${fmtDate(r.date)}</h2>
+    <div class="repnums">${n(t.checked_in, 'Check-ins') + n(t.unique_students, 'Different students') + n(t.late, 'Late') + n(t.missing, 'Absent') + n(t.blocked_attempts, 'Blocked check-ins')}</div>
+    ${r.events.length ? `<div class="block table"><table><tr><th>Session</th><th>Starts</th><th class="num">On list</th><th class="num">On time</th><th class="num">Late</th>
       <th class="num">Marked</th><th class="num">Absent</th><th class="num">Rate</th><th></th></tr>
     ${r.events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${e.start_time}</td><td class="num">${e.registered}</td><td class="num">${e.present}</td><td class="num">${e.late}</td>
       <td class="num">${e.manual}</td><td class="num">${e.missing}</td><td class="num"><b>${e.rate}%</b></td>
-      <td class="right"><a href="/api/events/${e.id}/report.csv">Download CSV</a></td></tr>`).join('')}</table></div>`
+      <td class="right"><a class="btn btn-quiet" style="padding:6px 10px" href="/api/events/${e.id}/report.csv">${ICONS.download}CSV</a></td></tr>`).join('')}</table></div>`
     : '<p class="empty">No sessions on this day.</p>'}`;
 }
 
@@ -409,7 +446,7 @@ async function loadReport() {
 async function loadTrainers() {
   const list = await api('/api/trainers');
   $('#trList').innerHTML = `<table><tr><th>Name</th><th>Username</th><th></th></tr>${list.map(t => `<tr>
-    <td><b>${esc(t.name)}</b>${t.me ? ' <span class="chip">You</span>' : ''}</td><td class="id">${esc(t.username)}</td>
+    <td><div class="person">${avatar(t.name)}<b>${esc(t.name)}</b>${t.me ? '<span class="chip you">You</span>' : ''}</div></td><td class="id">${esc(t.username)}</td>
     <td class="right"><button class="link" onclick="resetTrainerPw(${t.id}, '${esc(t.name).replace(/'/g, '&#39;')}')">Set new password</button>
     ${t.me ? '' : `<button class="link danger" onclick="removeTrainer(${t.id}, '${esc(t.name).replace(/'/g, '&#39;')}')">Remove</button>`}</td></tr>`).join('')}</table>`;
 }
@@ -434,7 +471,7 @@ async function removeTrainer(id, name) {
 async function changeName() {
   try {
     const r = await api('/api/me/name', { body: { name: $('#aName').value } });
-    $('#who').textContent = r.name; $('#nm').innerHTML = ''; toast('Name saved');
+    $('#who').textContent = r.name; $('#whoAv').textContent = initials(r.name); $('#nm').innerHTML = ''; toast('Name saved');
   } catch (e) { $('#nm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
 }
 async function changePw() {
@@ -445,7 +482,7 @@ async function changePw() {
 
 (async () => {
   const me = await requireLogin('trainer'); if (!me) return;
-  $('#who').textContent = me.name; $('#aName').value = me.name; $('#eDate').value = today(); $('#rDate').value = today();
+  $('#who').textContent = me.name; $('#whoAv').textContent = initials(me.name); $('#aName').value = me.name; $('#eDate').value = today(); $('#rDate').value = today();
   loadEvents();
 })();
 </script>

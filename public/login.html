@@ -1,16 +1,20 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trainer sign in | SEMI Bootcamp Attendance</title>
+<meta name="theme-color" content="#F2F5F3">
+<script>(function(){var t;try{t=localStorage.getItem('att_theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
 body{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
-.art{background:var(--surface);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:48px}
+.art{background:var(--surface-solid);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:48px;position:relative}
+.theme-sw{position:fixed;top:16px;right:16px;z-index:5}
 .art img{display:block;width:min(520px,80%);height:auto}
 .panel{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.form{background:var(--surface);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-lg);padding:32px 30px;box-shadow:var(--shadow)}
 .form{width:100%;max-width:380px}
-.form .logo{width:150px;display:block;margin-bottom:36px}
+.form .logo{height:28px;width:auto;margin-bottom:28px}
 .form h1{margin-bottom:8px}
 .form .lede{color:var(--ink-2);margin-bottom:12px}
 .form button{width:100%;margin-top:22px;padding:13px}
@@ -23,11 +27,12 @@ body{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax
 </style></head>
 <body>
 <aside class="art">
-  <img src="semi-techzoomers.png" alt="SEMI Tech Zoomers">
+  <img class="only-light" src="semi-techzoomers.png" alt="SEMI Tech Zoomers"><img class="only-dark" src="semi-techzoomers-white.png" alt="SEMI Tech Zoomers">
 </aside>
+<button class="icon-btn theme-sw" data-theme-icon onclick="toggleTheme()" aria-label="Switch light or dark mode"></button>
 <main class="panel">
   <div class="form">
-    <img class="logo" src="semi-logo.png" alt="SEMI">
+    <img class="logo only-light" src="semi-logo.png" alt="SEMI"><img class="logo only-dark" src="semi-logo-white.png" alt="SEMI">
     <h1>Trainer sign in</h1>
     <p class="lede">Students don't need an account. They scan the QR code in class and pick their name.</p>
     <form id="f">

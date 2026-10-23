@@ -214,7 +214,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
+  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other staffs.</p>
   <div class="block" style="max-width:520px">
     <h2>Appearance</h2>
     <p class="small muted">Light or dark mode for this device. Students' phones follow their own phone setting.</p>
@@ -231,7 +231,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
   <div class="block" style="max-width:520px">
     <h2>Password</h2>
-    <p class="small muted">Change it before the first real session. Use at least 8 characters.</p>
+    <p class="small muted">Use at least 8 characters.</p>
     <label for="aOld">Current password</label><input id="aOld" type="password" autocomplete="current-password">
     <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
@@ -240,7 +240,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
   <div class="block">
     <h2>Trainer accounts</h2>
-    <p class="small muted">Each trainer signs in with their own username and password. Every trainer can see and run all sessions.</p>
+    <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
     <h3 style="margin-top:22px">Add a trainer</h3>
     <form class="fields" onsubmit="event.preventDefault(); addTrainer()">

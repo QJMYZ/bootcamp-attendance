@@ -11,6 +11,10 @@
 .top{background:var(--bar);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
 .top .in{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:26px;height:64px}
 .top .logo{height:24px;width:auto}
+.top .home{display:flex;align-items:center;flex:none;padding:6px;margin:-6px;border-radius:10px;transition:opacity .15s,transform .15s}
+.top .home:hover{opacity:.75}
+.top .home:active{transform:scale(.96)}
+.top .home:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .tabs{display:flex;gap:2px;height:100%;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{height:100%;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--ink-2);padding:0 12px;font-weight:600;gap:7px;box-shadow:none !important}
@@ -93,7 +97,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 </style></head>
 <body>
 <header class="top"><div class="in">
-  <img class="logo only-light" src="semi-logo.png" alt="SEMI"><img class="logo only-dark" src="semi-logo-white.png" alt="SEMI">
+  <a class="home" id="home" href="/trainer.html" title="Back to the Live page" aria-label="SEMI, back to the Live page"><img class="logo only-light" src="semi-logo.png" alt=""><img class="logo only-dark" src="semi-logo-white.png" alt=""></a>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="live" aria-selected="true"><span data-ico="live"></span><span class="lbl">Live</span></button>
     <button role="tab" data-tab="events" aria-selected="false"><span data-ico="cal"></span><span class="lbl">Sessions</span></button>
@@ -157,7 +161,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- SESSIONS -->
 <section id="tab-events" class="hidden">
-  <h1>Sessions</h1><p class="sub">Each bootcamp day is a session with its own QR code.</p>
+  <h1>Sessions</h1><p class="sub">Each bootcamp day or class is a session with its own QR code.</p>
   <div class="block">
     <h2 id="eTitle">New session</h2>
     <div class="fields">
@@ -210,7 +214,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other staffs.</p>
+  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
   <div class="block" style="max-width:520px">
     <h2>Appearance</h2>
     <p class="small muted">Light or dark mode for this device. Students' phones follow their own phone setting.</p>
@@ -227,7 +231,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
   <div class="block" style="max-width:520px">
     <h2>Password</h2>
-    <p class="small muted">Use at least 8 characters.</p>
+    <p class="small muted">Change it before the first real session. Use at least 8 characters.</p>
     <label for="aOld">Current password</label><input id="aOld" type="password" autocomplete="current-password">
     <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
@@ -235,10 +239,10 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
 
   <div class="block">
-    <h2>Staff accounts</h2>
-    <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
+    <h2>Trainer accounts</h2>
+    <p class="small muted">Each trainer signs in with their own username and password. Every trainer can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
-    <h3 style="margin-top:22px">Add a staff</h3>
+    <h3 style="margin-top:22px">Add a trainer</h3>
     <form class="fields" onsubmit="event.preventDefault(); addTrainer()">
       <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
       <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
@@ -267,6 +271,13 @@ function showTab(name) {
   if (name === 'live' && current) refreshLive();   // show fresh numbers straight away
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+// SEMI logo: back to the Live page with fresh numbers (Ctrl or Cmd click still opens a new tab)
+$('#home').onclick = e => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+  e.preventDefault();
+  showTab('live');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 // ---- sessions ----
 async function loadEvents() {
@@ -503,6 +514,5 @@ async function changePw() {
   $('#who').textContent = me.name; $('#whoAv').textContent = initials(me.name); $('#aName').value = me.name; $('#eDate').value = today(); $('#rDate').value = today();
   loadEvents();
 })();
-
 </script>
 </body></html>

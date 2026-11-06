@@ -239,7 +239,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
 
   <div class="block">
-    <h2>Trainer accounts</h2>
+    <h2>Staff accounts</h2>
     <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
     <h3 style="margin-top:22px">Add a staff</h3>
@@ -247,7 +247,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
       <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
       <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
       <div><label for="tPass">Password</label><input id="tPass" type="password" autocomplete="new-password" placeholder="At least 8 characters" required></div>
-      <button><span data-ico="plus"></span>Add trainer</button>
+      <button><span data-ico="plus"></span>Add staff</button>
     </form>
     <div id="tm"></div>
   </div>
@@ -385,7 +385,7 @@ async function drawLive() {
   // overview ring: how many are checked in, split by on time / late / marked
   drawRing($('#ring'), t, s.registered);
   $('#ringKey').innerHTML = [['var(--green)', 'On time', t.present], ['var(--amber)', 'Late', t.late],
-    ['var(--marked)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
+    ['var(--marked)', 'Marked by staff', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
     .map(([c, l, n]) => `<li><i style="background:${c}"></i>${l}<b>${n}</b></li>`).join('');
 
   $('#missN').textContent = t.missing;

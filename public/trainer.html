@@ -161,7 +161,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- SESSIONS -->
 <section id="tab-events" class="hidden">
-  <h1>Sessions</h1><p class="sub">Each bootcamp day or class is a session with its own QR code.</p>
+  <h1>Sessions</h1><p class="sub">Each bootcamp day is a session with its own QR code.</p>
   <div class="block">
     <h2 id="eTitle">New session</h2>
     <div class="fields">
@@ -172,7 +172,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
       <div style="flex-basis:240px"><label for="eTz">Time zone (where the session runs)</label><select id="eTz"></select></div>
     </div>
     <p class="small muted" style="margin:8px 0 0">Students who check in more than the "late after" minutes past the start time are marked late. The start time and late check use the time zone you choose, whatever time zone a student's phone or your laptop is set to. <span id="tzNow"></span></p>
-    <label class="check" id="eAllRow"><input type="checkbox" id="eAll" checked> Put every student on this session's class list</label>
+    <label class="check" id="eAllRow"><input type="checkbox" id="eAll" checked> Put every student on this session's list</label>
     <button id="eSave" onclick="saveSession()" style="margin-top:14px">Create session</button>
     <button id="eCancel" class="btn-quiet hidden" onclick="cancelEdit()" style="margin-top:14px">Cancel</button>
     <div id="em"></div>

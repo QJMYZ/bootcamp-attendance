@@ -305,6 +305,20 @@ app.post('/api/students', auth('trainer'), h(async (req, res) => {
   if (created.length) broadcastAll({ type: 'refresh' });   // open dashboards update straight away
   res.json({ added: created.length, created, errors });
 }));
+// Remove many students at once (ticked on the Students page). Same rules as removing one.
+app.post('/api/students/remove', auth('trainer'), h(async (req, res) => {
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(num).filter(Boolean))];
+  if (!ids.length) return res.status(400).json({ error: 'Choose at least one student' });
+  let removed = 0;
+  for (let i = 0; i < ids.length; i += 500) {
+    const b = ids.slice(i, i + 500), q = b.map(() => '?').join(',');
+    removed += (await run(`UPDATE users SET active=0 WHERE role='student' AND active=1 AND id IN (${q})`, b)).changes;
+    await run(`DELETE FROM registrations WHERE user_id IN (${q}) AND event_id IN (SELECT id FROM events WHERE date >= ?)
+      AND NOT EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=registrations.event_id AND c.user_id=registrations.user_id)`, [...b, localDate()]);
+  }
+  broadcastAll({ type: 'refresh' });
+  res.json({ removed });
+}));
 // Remove a student: they drop off the student list and off every session from today onwards.
 // Past attendance is kept, so old reports stay correct.
 app.delete('/api/students/:id', auth('trainer'), h(async (req, res) => {

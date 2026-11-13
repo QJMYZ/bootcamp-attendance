@@ -75,6 +75,27 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 .right{text-align:right;white-space:nowrap}
 .listhead{display:flex;align-items:baseline;gap:8px;margin:4px 0 10px}
 .listhead small{font:600 14px var(--text);color:var(--ink-2)}
+.listhead .tools{margin-left:auto;display:flex;gap:4px;font-size:14px}
+/* student lists */
+.listbar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.listbar button{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:99px;font:600 14px var(--text);
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--line);box-shadow:none;margin:0;width:auto}
+.listbar button:hover{color:var(--ink);border-color:var(--ink-3)}
+.listbar button[aria-pressed="true"]{background:var(--green-tint);color:var(--green-ink);border-color:var(--green)}
+.listbar button .n{font-size:12.5px;padding:1px 8px;border-radius:99px;background:var(--unused);color:var(--ink-2)}
+.listbar button[aria-pressed="true"] .n{background:var(--surface-solid);color:var(--green-ink)}
+.listbar .add{border-style:dashed}
+.listbar .add .ico{width:16px;height:16px}
+.movebar{position:sticky;top:76px;z-index:4;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;margin:0 0 10px;
+  border-radius:14px;background:var(--surface-solid);border:1px solid var(--green);box-shadow:0 8px 24px rgba(30,35,40,.10)}
+.movebar b{color:var(--green-ink)}
+.movebar select{width:auto;min-width:180px;height:40px;padding-top:0;padding-bottom:0;line-height:1.2;margin:0}
+.movebar button{margin:0;height:40px}
+td.pick,th.pick{width:34px;padding-right:0}
+td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--green)}
+.chip.list{background:var(--avatar-bg);color:var(--ink-2)}
+.chip.nolist{background:transparent;color:var(--ink-3);border:1px dashed var(--line)}
+.evlist{display:block;margin-top:2px;font-size:12.5px;color:var(--ink-3)}
 
 @media(max-width:980px){
   .live{grid-template-columns:1fr}
@@ -149,7 +170,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
     <details class="card blocked">
       <summary>Blocked check-ins (<span id="susN">0</span>)</summary>
-      <p class="small muted" style="margin-top:8px">Old or fake QR codes, names checked in twice, and one phone used for two names.</p>
+      <p class="small muted" style="margin-top:8px">Old or fake QR codes, names checked in twice, and one phone used for two names. If a student says a blocked phone really is their own, check they're in the room and press Mark present.</p>
       <div id="sus"></div>
     </details>
   </div>
@@ -161,7 +182,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- SESSIONS -->
 <section id="tab-events" class="hidden">
-  <h1>Sessions</h1><p class="sub">Each bootcamp day is a session with its own QR code.</p>
+  <h1>Sessions</h1><p class="sub">Each bootcamp day or class is a session with its own QR code.</p>
   <div class="block">
     <h2 id="eTitle">New session</h2>
     <div class="fields">
@@ -170,9 +191,9 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
       <div><label for="eStart">Starts at</label><input id="eStart" type="time" required></div>
       <div><label for="eLate">Late after (minutes)</label><input id="eLate" type="number" min="0" value="15"></div>
       <div style="flex-basis:240px"><label for="eTz">Time zone (where the session runs)</label><select id="eTz"></select></div>
+      <div style="flex-basis:220px;max-width:380px"><label for="eList">Student list</label><select id="eList"></select></div>
     </div>
     <p class="small muted" style="margin:8px 0 0">Students who check in more than the "late after" minutes past the start time are marked late. The start time and late check use the time zone you choose, whatever time zone a student's phone or your laptop is set to. <span id="tzNow"></span></p>
-    <label class="check" id="eAllRow"><input type="checkbox" id="eAll" checked> Put every student on this session's list</label>
     <button id="eSave" onclick="saveSession()" style="margin-top:14px">Create session</button>
     <button id="eCancel" class="btn-quiet hidden" onclick="cancelEdit()" style="margin-top:14px">Cancel</button>
     <div id="em"></div>
@@ -182,23 +203,27 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- STUDENTS -->
 <section id="tab-students" class="hidden">
-  <h1>Students</h1><p class="sub">Everyone on this list appears on the check-in page. Adding or removing a student updates every session from today onwards.</p>
+  <h1>Students</h1><p class="sub">Split students into lists (for example two cohorts) and give each session the list it's for. Adding, removing or moving a student updates every session from today onwards.</p>
+  <div class="listbar" id="listBar" role="group" aria-label="Student lists"></div>
   <div class="block">
     <h2>Add a student</h2>
     <form class="fields" onsubmit="event.preventDefault(); addOne()">
       <div><label for="sId">Student ID</label><input id="sId" placeholder="S001" required></div>
       <div style="flex-basis:220px"><label for="sName">Name</label><input id="sName" placeholder="Tan Wei Ming" required></div>
       <div style="flex-basis:240px"><label for="sEmail">Email</label><input id="sEmail" type="email" placeholder="weiming@example.com" required></div>
+      <div style="flex-basis:180px"><label for="sList">Student list</label><select id="sList"></select></div>
       <button><span data-ico="plus"></span>Add student</button>
     </form>
     <details class="paste"><summary>Add a whole class at once</summary>
-      <p class="small muted" style="margin-top:8px">One student per line as <code>ID, name, email</code>, or copy the three columns straight from Excel.</p>
+      <p class="small muted" style="margin-top:8px">One student per line as <code>ID, name, email</code>, or copy the three columns straight from Excel. They go into the list chosen above.</p>
       <textarea id="csv" placeholder="S001, Tan Wei Ming, weiming@example.com&#10;S002, Nur Aisyah, aisyah@example.com"></textarea>
       <button class="btn-quiet" onclick="addStudents()" style="margin-top:10px">Add these students</button>
     </details>
     <div id="sm"></div>
   </div>
-  <h2 class="listhead">Student list <small id="stuN"></small></h2>
+  <h2 class="listhead"><span id="stuHead">Student list</span> <small id="stuN"></small><span class="tools" id="listTools"></span></h2>
+  <div class="movebar hidden" id="moveBar"><b id="moveN"></b><span>Move to</span><select id="moveTo" aria-label="Move selected students to"></select>
+    <button onclick="moveSelected()">Move</button><button class="btn-quiet" onclick="clearPicks()">Clear</button></div>
   <div id="stuList"></div>
 </section>
 
@@ -214,7 +239,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other staffs.</p>
+  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
   <div class="block" style="max-width:520px">
     <h2>Appearance</h2>
     <p class="small muted">Light or dark mode for this device. Students' phones follow their own phone setting.</p>
@@ -231,7 +256,7 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
   <div class="block" style="max-width:520px">
     <h2>Password</h2>
-    <p class="small muted">Use at least 8 characters.</p>
+    <p class="small muted">Change it before the first real session. Use at least 8 characters.</p>
     <label for="aOld">Current password</label><input id="aOld" type="password" autocomplete="current-password">
     <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
@@ -239,15 +264,15 @@ code{background:var(--surface-2);border:1px solid var(--line-soft);padding:1px 5
   </div>
 
   <div class="block">
-    <h2>Staff accounts</h2>
-    <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
+    <h2>Trainer accounts</h2>
+    <p class="small muted">Each trainer signs in with their own username and password. Every trainer can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
-    <h3 style="margin-top:22px">Add a staff</h3>
+    <h3 style="margin-top:22px">Add a trainer</h3>
     <form class="fields" onsubmit="event.preventDefault(); addTrainer()">
       <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
       <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
       <div><label for="tPass">Password</label><input id="tPass" type="password" autocomplete="new-password" placeholder="At least 8 characters" required></div>
-      <button><span data-ico="plus"></span>Add staff</button>
+      <button><span data-ico="plus"></span>Add trainer</button>
     </form>
     <div id="tm"></div>
   </div>
@@ -281,7 +306,7 @@ $('#home').onclick = e => {
 
 // ---- sessions ----
 async function loadEvents() {
-  events = await api('/api/events');
+  [events] = await Promise.all([api('/api/events'), loadLists()]);
   const keep = $('#evSel').value;
   $('#evSel').innerHTML = events.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
   const todays = events.find(e => e.date === today());
@@ -290,12 +315,11 @@ async function loadEvents() {
   $('#evActions').classList.toggle('hidden', !events.length);
   $('#evList').innerHTML = events.length ? `<div class="block table"><table>
     <tr><th>Session</th><th>Date</th><th>Starts</th><th class="num">On list</th><th class="num">Checked in</th><th>Check-in</th><th></th></tr>
-    ${events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${fmtDate(e.date)}</td><td>${e.start_time} <span class="small muted">${esc(tzName(e.timezone))} ${esc(e.tz_offset)}</span></td>
+    ${events.map(e => `<tr><td><b>${esc(e.name)}</b><span class="evlist">${e.list_name ? esc(e.list_name) : 'All students'}</span></td><td>${fmtDate(e.date)}</td><td>${e.start_time} <span class="small muted">${esc(tzName(e.timezone))} ${esc(e.tz_offset)}</span></td>
     <td class="num">${e.registered}</td><td class="num">${e.checked_in}</td>
     <td>${e.checkin_open ? '<span class="chip open">Open</span>' : '<span class="chip">Closed</span>'}</td>
     <td class="right"><button class="link" onclick="openLive(${e.id})">View live</button>
       <button class="link" onclick="editSession(${e.id})">Edit</button>
-      <button class="link" onclick="registerAll(${e.id})">Add all students</button>
       <button class="link danger" onclick="delEvent(${e.id})">Delete</button></td></tr>`).join('')}</table></div>` : '';
   if ($('#evSel').value != current) selectEvent($('#evSel').value);
 }
@@ -304,15 +328,16 @@ function openLive(id) { $('#evSel').value = id; selectEvent(String(id)); showTab
 let editingId = null;
 async function saveSession() {
   if (!$('#eStart').value) { $('#em').innerHTML = '<div class="msg err">Choose the time the session starts</div>'; return; }
-  const body = { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value, late_after_min: $('#eLate').value, timezone: $('#eTz').value };
+  const body = { name: $('#eName').value, date: $('#eDate').value, start_time: $('#eStart').value, late_after_min: $('#eLate').value, timezone: $('#eTz').value, list_id: Number($('#eList').value) || 0 };
   try { localStorage.setItem('att_tz', $('#eTz').value); } catch {}
   try {
     if (editingId) {
       const r = await api(`/api/events/${editingId}/update`, { body });
-      toast(r.changed ? `Session saved. ${plural(r.changed, 'check-in')} re-marked on time / late.` : 'Session saved');
+      const moved = r.list ? ` Class list updated: ${r.list.added} added, ${r.list.removed} taken off.` : '';
+      toast((r.changed ? `Session saved. ${plural(r.changed, 'check-in')} re-marked on time / late.` : 'Session saved.') + moved);
       const id = editingId; cancelEdit(); await loadEvents(); openLive(id);
     } else {
-      const r = await api('/api/events', { body: { ...body, register_all: $('#eAll').checked } });
+      const r = await api('/api/events', { body: { ...body, register_all: true } });
       $('#em').innerHTML = ''; $('#eName').value = ''; $('#eStart').value = '';
       toast('Session created'); await loadEvents(); openLive(r.id);
     }
@@ -322,18 +347,17 @@ function editSession(id) {
   const e = events.find(x => x.id === id); if (!e) return;
   editingId = id;
   $('#eName').value = e.name; $('#eDate').value = e.date; $('#eStart').value = e.start_time; $('#eLate').value = e.late_after_min;
-  setTz(e.timezone);
+  setTz(e.timezone); fillListSelects(); $('#eList').value = String(e.list_id || 0);
   $('#eTitle').textContent = `Edit "${e.name}"`; $('#eSave').textContent = 'Save changes';
-  $('#eCancel').classList.remove('hidden'); $('#eAllRow').classList.add('hidden'); $('#em').innerHTML = '';
+  $('#eCancel').classList.remove('hidden'); $('#em').innerHTML = '';
   $('#eTitle').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#eStart').focus();
 }
 function cancelEdit() {
   editingId = null;
   $('#eName').value = ''; $('#eStart').value = ''; $('#eLate').value = 15; $('#eDate').value = today(); setTz(defaultTz());
-  $('#eTitle').textContent = 'New session'; $('#eSave').textContent = 'Create session';
-  $('#eCancel').classList.add('hidden'); $('#eAllRow').classList.remove('hidden'); $('#em').innerHTML = '';
+  $('#eTitle').textContent = 'New session'; $('#eSave').textContent = 'Create session'; $('#eList').value = '0';
+  $('#eCancel').classList.add('hidden'); $('#em').innerHTML = '';
 }
-async function registerAll(id) { const r = await api(`/api/events/${id}/register-all`, { body: {} }); toast(`${plural(r.added, 'student')} added to the list`); loadEvents(); }
 async function delEvent(id) {
   const e = events.find(x => x.id === id);
   if (confirm(`Delete "${e.name}" and all its attendance records? This can't be undone.`)) { await api(`/api/events/${id}`, { method: 'DELETE' }); toast('Session deleted'); current = null; loadEvents(); }
@@ -373,7 +397,7 @@ async function drawLive() {
   const s = await api(`/api/events/${current}/summary`), t = s.totals, ev = s.event;
   lastSummary = s;
   tzLive = ev.timezone;
-  $('#evMeta').innerHTML = `${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min. ${esc(tzLabel(ev.timezone, ev.tz_offset))}, now ${esc(ev.now_local)} <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
+  $('#evMeta').innerHTML = `${ev.list_name ? `<span class="chip list">${esc(ev.list_name)}</span> ` : ''}${fmtDate(ev.date)}, starts ${ev.start_time}, late after ${ev.late_after_min} min. ${esc(tzLabel(ev.timezone, ev.tz_offset))}, now ${esc(ev.now_local)} <button class="link" onclick="showTab('events'); editSession(${ev.id})">Change</button>
     ${ev.checkin_open ? '<span class="chip open">Check-in open</span>' : '<span class="chip">Check-in closed</span>'}`;
   $('#openBtn').innerHTML = ev.checkin_open ? `${ICONS.lock}Close check-in` : `${ICONS.unlock}Open check-in`;
   $('#openBtn').className = ev.checkin_open ? 'btn-stop' : '';
@@ -385,7 +409,7 @@ async function drawLive() {
   // overview ring: how many are checked in, split by on time / late / marked
   drawRing($('#ring'), t, s.registered);
   $('#ringKey').innerHTML = [['var(--green)', 'On time', t.present], ['var(--amber)', 'Late', t.late],
-    ['var(--marked)', 'Marked by staff', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
+    ['var(--marked)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
     .map(([c, l, n]) => `<li><i style="background:${c}"></i>${l}<b>${n}</b></li>`).join('');
 
   $('#missN').textContent = t.missing;
@@ -399,8 +423,12 @@ async function drawLive() {
     <td class="right"><button class="link" onclick="undo(${c.user_id}, '${esc(c.name).replace(/'/g, '&#39;')}')" title="Remove this check-in, e.g. wrong name picked">Undo</button></td></tr>`).join('')}</table>`
     : `<p class="empty">${ev.checkin_open ? 'Waiting for the first scan.' : 'Open check-in and show the QR screen to start.'}</p>`;
   $('#susN').textContent = s.suspicious.length;
-  $('#sus').innerHTML = s.suspicious.length ? `<table><tr><th>Time</th><th>Name chosen</th><th>Reason</th></tr>${s.suspicious.map(x =>
-    `<tr><td class="id">${fmtTime(x.ts, tzLive)}</td><td>${esc(x.name || '')} <span class="id">${esc(x.username || '')}</span></td><td>${esc(x.reason)}</td></tr>`).join('')}</table>`
+  const inNow = new Set(s.checkins.map(c => c.user_id));
+  // open the blocked list by itself when a phone was blocked and that student still isn't marked present
+  if (s.suspicious.some(x => x.user_id && !inNow.has(x.user_id) && /phone/i.test(x.reason))) document.querySelector('details.blocked').open = true;
+  $('#sus').innerHTML = s.suspicious.length ? `<table><tr><th>Time</th><th>Name chosen</th><th>Reason</th><th></th></tr>${s.suspicious.map(x =>
+    `<tr><td class="id">${fmtTime(x.ts, tzLive)}</td><td>${esc(x.name || '')} <span class="id">${esc(x.username || '')}</span></td><td>${esc(x.reason)}</td>
+    <td class="right">${x.user_id && !inNow.has(x.user_id) && /phone/i.test(x.reason) ? `<button class="link" onclick="manual(${x.user_id}, '${esc(x.name).replace(/'/g, '&#39;')}')" title="Checked the student is really here">Mark present</button>` : ''}</td></tr>`).join('')}</table>`
     : '<p class="empty">Nothing blocked so far.</p>';
 }
 async function toggleOpen() {
@@ -422,20 +450,95 @@ async function manual(uid, name) {
 }
 
 // ---- students ----
+// ---- student lists ----
+let lists = [], students = [], listView = 'all';          // listView: 'all', 'none' or a list id
+const picked = new Set();                                // students ticked for "Move to"
+async function loadLists() { lists = await api('/api/lists'); fillListSelects(); return lists; }
+const listName = id => (lists.find(l => l.id === id) || {}).name;
+function fillListSelects() {
+  const opts = lists.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+  const keep = (sel, v) => { const el = $(sel); const old = el.value; el.innerHTML = v; if ([...el.options].some(o => o.value === old)) el.value = old; return el; };
+  keep('#eList', `<option value="0">All students</option>${lists.map(l => `<option value="${l.id}">${esc(l.name)} (${plural(l.students, 'student')})</option>`).join('')}`);
+  const s = keep('#sList', `<option value="0">No list</option>${opts}`);
+  if (typeof listView === 'number' && document.activeElement !== s) s.value = String(listView);
+  keep('#moveTo', `${opts}<option value="0">No list</option>`);
+}
+function drawListBar() {
+  const none = students.filter(s => !s.list_id).length;
+  const btn = (v, label, n) => `<button aria-pressed="${listView === v}" onclick='setListView(${JSON.stringify(v)})'>${esc(label)} <span class="n">${n}</span></button>`;
+  $('#listBar').innerHTML = btn('all', 'All students', students.length)
+    + lists.map(l => btn(l.id, l.name, students.filter(s => s.list_id === l.id).length)).join('')
+    + (lists.length && none ? btn('none', 'Not in a list', none) : '')
+    + `<button class="add" onclick="newList()">${ICONS.plus}New list</button>`;
+}
+function setListView(v) {
+  listView = v; picked.clear();
+  if (typeof v === 'number') $('#sList').value = String(v);
+  drawStudents();
+}
+async function newList() {
+  const name = prompt('Name for the new student list, e.g. "Cohort A"');
+  if (!name || !name.trim()) return;
+  try { const r = await api('/api/lists', { body: { name } }); toast(`List "${r.name}" created. Add students to it, or tick students below and move them in.`); await loadLists(); setListView(r.id); }
+  catch (e) { toast(e.message); }
+}
+async function renameList(id) {
+  const name = prompt('New name for this list', listName(id) || '');
+  if (!name || !name.trim()) return;
+  try { await api(`/api/lists/${id}/rename`, { body: { name } }); toast('List renamed'); await loadLists(); loadEvents(); drawStudents(); } catch (e) { toast(e.message); }
+}
+async function deleteList(id) {
+  const l = lists.find(x => x.id === id); if (!l) return;
+  if (!confirm(`Delete the list "${l.name}"? Its ${plural(l.students, 'student')} stay on the Students page with no list. Nobody's attendance is deleted.`)) return;
+  try { await api(`/api/lists/${id}`, { method: 'DELETE' }); toast(`List "${l.name}" deleted`); await loadLists(); setListView('all'); loadEvents(); }
+  catch (e) { $('#sm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+function togglePick(id, on) { on ? picked.add(id) : picked.delete(id); drawMoveBar(); }
+function pickAll(on) { shown().forEach(s => on ? picked.add(s.id) : picked.delete(s.id)); drawStudents(); }
+function clearPicks() { picked.clear(); drawStudents(); }
+function drawMoveBar() {
+  const n = [...picked].filter(id => students.some(s => s.id === id)).length;
+  $('#moveBar').classList.toggle('hidden', !n || !lists.length);
+  $('#moveN').textContent = `${plural(n, 'student')} selected`;
+  const all = $('#pickAll'); if (all) { const sh = shown(); all.checked = sh.length > 0 && sh.every(s => picked.has(s.id)); all.indeterminate = !all.checked && sh.some(s => picked.has(s.id)); }
+}
+async function moveSelected() {
+  const ids = [...picked], to = Number($('#moveTo').value) || 0;
+  try {
+    await api('/api/students/move', { body: { ids, list_id: to } });
+    toast(`${plural(ids.length, 'student')} moved to ${to ? `"${listName(to)}"` : 'no list'}. Their sessions from today onwards are updated.`);
+    picked.clear(); await loadStudents(); loadEvents();
+  } catch (e) { toast(e.message); }
+}
+const shown = () => listView === 'all' ? students : students.filter(s => listView === 'none' ? !s.list_id : s.list_id === listView);
 async function loadStudents() {
-  const list = (await api('/api/students')).filter(s => s.active);
+  const [st] = await Promise.all([api('/api/students'), loadLists()]);
+  students = st.filter(s => s.active);
+  if (typeof listView === 'number' && !lists.some(l => l.id === listView)) listView = 'all';
+  drawStudents();
+}
+function drawStudents() {
+  drawListBar();
+  const list = shown(), named = typeof listView === 'number';
+  $('#stuHead').textContent = named ? listName(listView) : listView === 'none' ? 'Not in a list' : 'Student list';
   $('#stuN').textContent = list.length;
-  $('#stuList').innerHTML = list.length ? `<div class="block table"><table><tr><th>Name</th><th>ID</th><th>Email</th><th></th></tr>${list.map(s =>
-    `<tr><td><div class="person">${avatar(s.name)}<b>${esc(s.name)}</b></div></td><td class="id">${esc(s.username)}</td><td>${esc(s.email)}</td>
+  $('#listTools').innerHTML = named ? `<button class="link" onclick="renameList(${listView})">Rename</button><button class="link danger" onclick="deleteList(${listView})">Delete list</button>` : '';
+  const showList = lists.length > 0;
+  $('#stuList').innerHTML = list.length ? `<div class="block table"><table><tr>${showList ? '<th class="pick"><input type="checkbox" id="pickAll" aria-label="Select all shown" onchange="pickAll(this.checked)"></th>' : ''}<th>Name</th><th>ID</th><th>Email</th>${showList ? '<th>List</th>' : ''}<th></th></tr>${list.map(s =>
+    `<tr>${showList ? `<td class="pick"><input type="checkbox" aria-label="Select ${esc(s.name)}" ${picked.has(s.id) ? 'checked' : ''} onchange="togglePick(${s.id}, this.checked)"></td>` : ''}
+    <td><div class="person">${avatar(s.name)}<b>${esc(s.name)}</b></div></td><td class="id">${esc(s.username)}</td><td>${esc(s.email)}</td>
+    ${showList ? `<td>${s.list_id ? `<span class="chip list">${esc(listName(s.list_id) || '')}</span>` : '<span class="chip nolist">No list</span>'}</td>` : ''}
     <td class="right"><button class="link danger" onclick="rmStu(${s.id}, '${esc(s.name).replace(/'/g, '&#39;')}')">Remove</button></td></tr>`).join('')}</table></div>`
-    : '<p class="empty">No students yet. Add them above, one at a time or a whole class at once.</p>';
+    : `<p class="empty">${!students.length ? 'No students yet. Add them above, one at a time or a whole class at once.'
+      : named ? 'No students in this list yet. Add them above, or open "All students", tick the ones you want and move them here.' : 'Nobody here.'}</p>`;
+  drawMoveBar();
 }
 async function sendStudents(rows) {
   // show progress so a big class paste doesn't look stuck
   const btns = document.querySelectorAll('#tab-students button'); btns.forEach(b => b.disabled = true);
   $('#sm').innerHTML = `<div class="msg ok">Adding ${plural(rows.length, 'student')}...</div>`;
   let r;
-  try { r = await api('/api/students', { body: { rows } }); }
+  try { r = await api('/api/students', { body: { rows, list_id: Number($('#sList').value) || 0 } }); }
   catch (e) { $('#sm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; return { added: 0, errors: [e.message] }; }
   finally { btns.forEach(b => b.disabled = false); }
   $('#sm').innerHTML = r.errors.length ? `<div class="msg err">${r.added ? plural(r.added, 'student') + ' added. ' : ''}Not added:<br>${r.errors.map(esc).join('<br>')}</div>` : '';

@@ -287,8 +287,7 @@ app.post('/api/students', auth('trainer'), h(async (req, res) => {
     try {
       const existing = await get('SELECT id,active FROM users WHERE LOWER(username)=LOWER(?)', [username]);
       if (existing && existing.active) { errors.push(`${username}: student ID already exists`); continue; }
-      const sameEmail = await get("SELECT username FROM users WHERE LOWER(email)=? AND role='student' AND active=1", [email]);
-      if (sameEmail) { errors.push(`${username}: email already used by ${sameEmail.username}`); continue; }
+      // The same email may be used by more than one student (e.g. a shared or reused address), so it isn't checked here
       if (existing) await run('UPDATE users SET active=1,name=?,email=?,list_id=? WHERE id=?', [name, email, lid || null, existing.id]);   // re-adding a removed student
       else await run("INSERT INTO users (username,name,role,email,salt,pass_hash,list_id) VALUES (?,?,'student',?,'','',?)", [username, name, email, lid || null]);
       created.push({ username, name, email });

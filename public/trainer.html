@@ -203,7 +203,7 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
 
 <!-- STUDENTS -->
 <section id="tab-students" class="hidden">
-  <h1>Students</h1><p class="sub">Split students into lists (for example two cohorts) and give each session the list it's for. Adding, removing or moving a student updates every session from today onwards.</p>
+  <h1>Students</h1><p class="sub">Split students into lists (for example two cohorts) and give each session the list it's for. Tick students to move or remove several at once. Adding, removing or moving a student updates every session from today onwards.</p>
   <div class="listbar" id="listBar" role="group" aria-label="Student lists"></div>
   <div class="block">
     <h2>Add a student</h2>
@@ -222,8 +222,8 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
     <div id="sm"></div>
   </div>
   <h2 class="listhead"><span id="stuHead">Student list</span> <small id="stuN"></small><span class="tools" id="listTools"></span></h2>
-  <div class="movebar hidden" id="moveBar"><b id="moveN"></b><span>Move to</span><select id="moveTo" aria-label="Move selected students to"></select>
-    <button onclick="moveSelected()">Move</button><button class="btn-quiet" onclick="clearPicks()">Clear</button></div>
+  <div class="movebar hidden" id="moveBar"><b id="moveN"></b><span class="mv">Move to</span><select class="mv" id="moveTo" aria-label="Move selected students to"></select>
+    <button class="mv" onclick="moveSelected()">Move</button><button class="btn-stop" onclick="removeSelected()">Remove selected</button><button class="btn-quiet" onclick="clearPicks()">Clear</button></div>
   <div id="stuList"></div>
 </section>
 
@@ -498,9 +498,21 @@ function pickAll(on) { shown().forEach(s => on ? picked.add(s.id) : picked.delet
 function clearPicks() { picked.clear(); drawStudents(); }
 function drawMoveBar() {
   const n = [...picked].filter(id => students.some(s => s.id === id)).length;
-  $('#moveBar').classList.toggle('hidden', !n || !lists.length);
+  $('#moveBar').classList.toggle('hidden', !n);
+  document.querySelectorAll('#moveBar .mv').forEach(el => el.classList.toggle('hidden', !lists.length));   // Move needs a list to move to
   $('#moveN').textContent = `${plural(n, 'student')} selected`;
   const all = $('#pickAll'); if (all) { const sh = shown(); all.checked = sh.length > 0 && sh.every(s => picked.has(s.id)); all.indeterminate = !all.checked && sh.some(s => picked.has(s.id)); }
+}
+async function removeSelected() {
+  const ids = [...picked].filter(id => students.some(s => s.id === id));
+  if (!ids.length) return;
+  const names = ids.map(id => students.find(s => s.id === id).name);
+  const preview = names.slice(0, 5).join(', ') + (names.length > 5 ? ` and ${names.length - 5} more` : '');
+  if (!confirm(`Remove ${plural(ids.length, 'student')} (${preview})? They come off the student list and every session from today onwards. Past attendance is kept.`)) return;
+  try {
+    const r = await api('/api/students/remove', { body: { ids } });
+    toast(`${plural(r.removed, 'student')} removed`); picked.clear(); await loadStudents(); loadEvents();
+  } catch (e) { toast(e.message); }
 }
 async function moveSelected() {
   const ids = [...picked], to = Number($('#moveTo').value) || 0;
@@ -524,8 +536,8 @@ function drawStudents() {
   $('#stuN').textContent = list.length;
   $('#listTools').innerHTML = named ? `<button class="link" onclick="renameList(${listView})">Rename</button><button class="link danger" onclick="deleteList(${listView})">Delete list</button>` : '';
   const showList = lists.length > 0;
-  $('#stuList').innerHTML = list.length ? `<div class="block table"><table><tr>${showList ? '<th class="pick"><input type="checkbox" id="pickAll" aria-label="Select all shown" onchange="pickAll(this.checked)"></th>' : ''}<th>Name</th><th>ID</th><th>Email</th>${showList ? '<th>List</th>' : ''}<th></th></tr>${list.map(s =>
-    `<tr>${showList ? `<td class="pick"><input type="checkbox" aria-label="Select ${esc(s.name)}" ${picked.has(s.id) ? 'checked' : ''} onchange="togglePick(${s.id}, this.checked)"></td>` : ''}
+  $('#stuList').innerHTML = list.length ? `<div class="block table"><table><tr><th class="pick"><input type="checkbox" id="pickAll" aria-label="Select all shown" onchange="pickAll(this.checked)"></th><th>Name</th><th>ID</th><th>Email</th>${showList ? '<th>List</th>' : ''}<th></th></tr>${list.map(s =>
+    `<tr><td class="pick"><input type="checkbox" aria-label="Select ${esc(s.name)}" ${picked.has(s.id) ? 'checked' : ''} onchange="togglePick(${s.id}, this.checked)"></td>
     <td><div class="person">${avatar(s.name)}<b>${esc(s.name)}</b></div></td><td class="id">${esc(s.username)}</td><td>${esc(s.email)}</td>
     ${showList ? `<td>${s.list_id ? `<span class="chip list">${esc(listName(s.list_id) || '')}</span>` : '<span class="chip nolist">No list</span>'}</td>` : ''}
     <td class="right"><button class="link danger" onclick="rmStu(${s.id}, '${esc(s.name).replace(/'/g, '&#39;')}')">Remove</button></td></tr>`).join('')}</table></div>`

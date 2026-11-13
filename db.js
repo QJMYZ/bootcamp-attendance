@@ -48,6 +48,10 @@ async function init() {
     pass_hash TEXT NOT NULL,
     active INTEGER DEFAULT 1
   );
+  CREATE TABLE IF NOT EXISTS lists (
+    id ${ID},
+    name TEXT UNIQUE NOT NULL             -- a named student list, e.g. "Cohort A"
+  );
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -76,6 +80,7 @@ async function init() {
     status TEXT NOT NULL,                 -- present | late | manual
     device_id TEXT, ip TEXT, user_agent TEXT,
     flagged INTEGER DEFAULT 0, flag_reason TEXT,
+    phone_fp TEXT, net TEXT,              -- phone traits hash + network, to spot one phone used for many names
     UNIQUE (event_id, user_id)            -- anti-cheat: one check-in per student per event
   );
   CREATE TABLE IF NOT EXISTS suspicious (
@@ -91,6 +96,16 @@ async function init() {
   // ...and sessions without a time zone column
   if (isPg) await exec('ALTER TABLE events ADD COLUMN IF NOT EXISTS timezone TEXT');
   else if (!(await all('PRAGMA table_info(events)')).some(c => c.name === 'timezone')) await exec('ALTER TABLE events ADD COLUMN timezone TEXT');
+  // ...and students / sessions without a student list column (empty = no list / all students)
+  for (const t of ['users', 'events']) {
+    if (isPg) await exec(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS list_id INTEGER`);
+    else if (!(await all(`PRAGMA table_info(${t})`)).some(c => c.name === 'list_id')) await exec(`ALTER TABLE ${t} ADD COLUMN list_id INTEGER`);
+  }
+  // ...and check-ins without the phone check columns
+  for (const col of ['phone_fp', 'net']) {
+    if (isPg) await exec(`ALTER TABLE checkins ADD COLUMN IF NOT EXISTS ${col} TEXT`);
+    else if (!(await all('PRAGMA table_info(checkins)')).some(c => c.name === col)) await exec(`ALTER TABLE checkins ADD COLUMN ${col} TEXT`);
+  }
 
   // Always have a trainer account. On a hosted site, set ADMIN_PASSWORD so the default is never public.
   if (!(await get("SELECT 1 AS x FROM users WHERE role='trainer'"))) {

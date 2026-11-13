@@ -44,6 +44,15 @@ function parseCookies(req) {
   });
   return out;
 }
+// The network a request came from: the full IPv4 address, or the /64 block for IPv6 (phones rotate the last part)
+function netKey(ip) {
+  ip = String(ip || '').replace(/^::ffff:/, '');
+  if (!ip.includes(':')) return ip;
+  const [head, tail = ''] = ip.split('::');
+  const h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
+  const full = ip.includes('::') ? [...h, ...Array(8 - h.length - t.length).fill('0'), ...t] : h;
+  return full.slice(0, 4).map(x => parseInt(x || '0', 16).toString(16)).join(':') + '::/64';
+}
 function setCookie(req, res, name, value, maxAgeSec) {
   res.append('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${req.secure ? '; Secure' : ''}`);
 }
@@ -177,13 +186,98 @@ app.post('/api/me/password', auth(), h(async (req, res) => {
 
 // ---------- students (trainer) ----------
 app.get('/api/students', auth('trainer'), h(async (req, res) => {
-  res.json(await all("SELECT id,username,name,email,active FROM users WHERE role='student' AND active=1 ORDER BY username"));
+  res.json(await all("SELECT id,username,name,email,active,list_id FROM users WHERE role='student' AND active=1 ORDER BY username"));
+}));
+
+// ---------- student lists ----------
+// Each student belongs to at most one list (e.g. "Cohort A"). Each session uses one list, or all students.
+const listIdOf = async v => {          // 0 = no list / all students; returns null if the list doesn't exist
+  const id = num(v) || 0;
+  if (!id) return 0;
+  return (await get('SELECT id FROM lists WHERE id=?', [id])) ? id : null;
+};
+// Make a session's class list match its student list: add students who belong, take off ones who don't
+// (students who already checked in always stay, so attendance is never lost).
+async function syncSession(eventId) {
+  const ev = await get('SELECT id,list_id FROM events WHERE id=?', [eventId]);
+  if (!ev) return { added: 0, removed: 0 };
+  const lid = num(ev.list_id) || 0;
+  const add = await run(`INSERT INTO registrations (event_id,user_id) SELECT CAST(? AS INTEGER), id FROM users
+    WHERE role='student' AND active=1 AND (CAST(? AS INTEGER)=0 OR list_id=?) ON CONFLICT DO NOTHING`, [ev.id, lid, lid]);
+  const rm = lid ? await run(`DELETE FROM registrations WHERE event_id=?
+    AND user_id IN (SELECT id FROM users WHERE list_id IS NULL OR list_id<>?)
+    AND NOT EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=registrations.event_id AND c.user_id=registrations.user_id)`, [ev.id, lid]) : { changes: 0 };
+  return { added: add.changes, removed: rm.changes };
+}
+// After students join or change list: put them on matching sessions from today onwards, and off the others
+async function syncStudents(ids) {
+  for (let i = 0; i < ids.length; i += 500) {
+    const b = ids.slice(i, i + 500), q = b.map(() => '?').join(',');
+    await run(`DELETE FROM registrations WHERE user_id IN (${q})
+      AND event_id IN (SELECT e.id FROM events e JOIN users u ON u.id=registrations.user_id
+        WHERE e.date >= ? AND e.list_id IS NOT NULL AND (u.list_id IS NULL OR u.list_id<>e.list_id))
+      AND NOT EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=registrations.event_id AND c.user_id=registrations.user_id)`, [...b, localDate()]);
+    await run(`INSERT INTO registrations (event_id,user_id)
+      SELECT e.id, u.id FROM events e, users u
+      WHERE e.date >= ? AND u.role='student' AND u.active=1 AND u.id IN (${q}) AND (e.list_id IS NULL OR e.list_id=u.list_id)
+      ON CONFLICT DO NOTHING`, [localDate(), ...b]);
+  }
+}
+app.get('/api/lists', auth('trainer'), h(async (req, res) => {
+  res.json(await all(`SELECT l.id,l.name,
+      CAST((SELECT COUNT(*) FROM users u WHERE u.list_id=l.id AND u.role='student' AND u.active=1) AS INTEGER) AS students,
+      CAST((SELECT COUNT(*) FROM events e WHERE e.list_id=l.id) AS INTEGER) AS sessions
+    FROM lists l ORDER BY l.name`));
+}));
+app.post('/api/lists', auth('trainer'), h(async (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 60);
+  if (!name) return res.status(400).json({ error: 'Give the list a name' });
+  if (await get('SELECT 1 AS x FROM lists WHERE LOWER(name)=LOWER(?)', [name])) return res.status(400).json({ error: `There is already a list called "${name}"` });
+  const r = await run('INSERT INTO lists (name) VALUES (?) RETURNING id', [name]);
+  res.json({ id: r.rows[0].id, name });
+}));
+app.post('/api/lists/:id/rename', auth('trainer'), h(async (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 60), id = num(req.params.id) || 0;
+  if (!name) return res.status(400).json({ error: 'Give the list a name' });
+  if (await get('SELECT 1 AS x FROM lists WHERE LOWER(name)=LOWER(?) AND id<>?', [name, id])) return res.status(400).json({ error: `There is already a list called "${name}"` });
+  await run('UPDATE lists SET name=? WHERE id=?', [name, id]);
+  broadcastAll({ type: 'refresh' });
+  res.json({ ok: true });
+}));
+// Delete a list: its students stay (with no list). Not allowed while an upcoming session uses it.
+app.delete('/api/lists/:id', auth('trainer'), h(async (req, res) => {
+  const id = num(req.params.id) || 0;
+  const busy = await all('SELECT name FROM events WHERE list_id=? AND date >= ? ORDER BY date', [id, localDate()]);
+  if (busy.length) return res.status(400).json({ error: `Still used by ${busy.map(e => `"${e.name}"`).join(', ')}. Change those sessions to another list first.` });
+  await run('UPDATE events SET list_id=NULL WHERE list_id=?', [id]);   // past sessions keep their attendance
+  const moved = await all("SELECT id FROM users WHERE list_id=? AND role='student'", [id]);
+  await run('UPDATE users SET list_id=NULL WHERE list_id=?', [id]);
+  await run('DELETE FROM lists WHERE id=?', [id]);
+  await syncStudents(moved.map(m => m.id));
+  broadcastAll({ type: 'refresh' });
+  res.json({ ok: true });
+}));
+// Move students to another list (or to no list). They follow it on sessions from today onwards.
+app.post('/api/students/move', auth('trainer'), h(async (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(num).filter(Boolean);
+  const lid = await listIdOf(req.body?.list_id);
+  if (lid === null) return res.status(400).json({ error: 'That student list no longer exists' });
+  if (!ids.length) return res.status(400).json({ error: 'Choose at least one student' });
+  for (let i = 0; i < ids.length; i += 500) {
+    const b = ids.slice(i, i + 500);
+    await run(`UPDATE users SET list_id=? WHERE role='student' AND id IN (${b.map(() => '?').join(',')})`, [lid || null, ...b]);
+  }
+  await syncStudents(ids);
+  broadcastAll({ type: 'refresh' });
+  res.json({ moved: ids.length });
 }));
 // Add students: rows = [{username, name, email}]. No limit on how many.
 // Students have no password (they pick their name to check in), so adding them is quick even for a large class.
 const EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 app.post('/api/students', auth('trainer'), h(async (req, res) => {
   const rows = Array.isArray(req.body.rows) ? req.body.rows : [req.body];
+  const lid = await listIdOf(req.body.list_id);
+  if (lid === null) return res.status(400).json({ error: 'That student list no longer exists' });
   const created = []; const errors = [];
   for (const r of rows) {
     const username = String(r.username || '').trim(), name = String(r.name || '').trim(), email = String(r.email || '').trim().toLowerCase();
@@ -195,19 +289,20 @@ app.post('/api/students', auth('trainer'), h(async (req, res) => {
       if (existing && existing.active) { errors.push(`${username}: student ID already exists`); continue; }
       const sameEmail = await get("SELECT username FROM users WHERE LOWER(email)=? AND role='student' AND active=1", [email]);
       if (sameEmail) { errors.push(`${username}: email already used by ${sameEmail.username}`); continue; }
-      if (existing) await run('UPDATE users SET active=1,name=?,email=? WHERE id=?', [name, email, existing.id]);   // re-adding a removed student
-      else await run("INSERT INTO users (username,name,role,email,salt,pass_hash) VALUES (?,?,'student',?,'','')", [username, name, email]);
+      if (existing) await run('UPDATE users SET active=1,name=?,email=?,list_id=? WHERE id=?', [name, email, lid || null, existing.id]);   // re-adding a removed student
+      else await run("INSERT INTO users (username,name,role,email,salt,pass_hash,list_id) VALUES (?,?,'student',?,'','',?)", [username, name, email, lid || null]);
       created.push({ username, name, email });
     } catch (e) { errors.push(`${username}: could not add`); }
   }
-  // New students join every session from today onwards, so it doesn't matter whether sessions or students were set up first
+  // New students join every session from today onwards that uses their list (or all students),
+  // so it doesn't matter whether sessions or students were set up first
+  const ids = [];
   for (let i = 0; i < created.length; i += 500) {      // in batches of 500 so very large classes still work
     const batch = created.slice(i, i + 500);
-    await run(`INSERT INTO registrations (event_id,user_id)
-      SELECT e.id, u.id FROM events e, users u
-      WHERE e.date >= ? AND u.role='student' AND u.active=1 AND LOWER(u.username) IN (${batch.map(() => '?').join(',')})
-      ON CONFLICT DO NOTHING`, [localDate(), ...batch.map(c => c.username.toLowerCase())]);
+    ids.push(...(await all(`SELECT id FROM users WHERE role='student' AND LOWER(username) IN (${batch.map(() => '?').join(',')})`,
+      batch.map(c => c.username.toLowerCase()))).map(r => r.id));
   }
+  await syncStudents(ids);
   if (created.length) broadcastAll({ type: 'refresh' });   // open dashboards update straight away
   res.json({ added: created.length, created, errors });
 }));
@@ -223,25 +318,25 @@ app.delete('/api/students/:id', auth('trainer'), h(async (req, res) => {
 }));
 
 // ---------- events ----------
-const REG_ALL = `INSERT INTO registrations (event_id,user_id) SELECT CAST(? AS INTEGER), id FROM users
-  WHERE role='student' AND active=1 ON CONFLICT DO NOTHING`;
 
 app.get('/api/events', auth('trainer'), h(async (req, res) => {
   const rows = await all(`
-    SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,e.timezone,
+    SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,e.timezone,e.list_id,l.name AS list_name,
       CAST((${ON_LIST('e.id')}) AS INTEGER) AS registered,
       CAST((SELECT COUNT(*) FROM checkins c WHERE c.event_id=e.id) AS INTEGER) AS checked_in
-    FROM events e ORDER BY e.date DESC, e.start_time DESC`);
+    FROM events e LEFT JOIN lists l ON l.id=e.list_id ORDER BY e.date DESC, e.start_time DESC`);
   res.json(rows.map(e => ({ ...e, ...tzInfo(e) })));
 }));
 app.post('/api/events', auth('trainer'), h(async (req, res) => {
-  const { name, date, start_time, late_after_min = 15, register_all, timezone } = req.body || {};
+  const { name, date, start_time, late_after_min = 15, register_all = true, timezone } = req.body || {};
   if (!name || !date || !start_time) return res.status(400).json({ error: 'Name, date and start time are required' });
   if (timezone && !validTz(timezone)) return res.status(400).json({ error: 'Choose a time zone from the list' });
-  const r = await run(`INSERT INTO events (name,date,start_time,late_after_min,secret,timezone)
-    VALUES (?,?,?,?,?,?) RETURNING id`, [name, date, start_time, num(late_after_min) || 0, crypto.randomBytes(32).toString('hex'), validTz(timezone) || TZ]);
+  const lid = await listIdOf(req.body?.list_id);
+  if (lid === null) return res.status(400).json({ error: 'That student list no longer exists' });
+  const r = await run(`INSERT INTO events (name,date,start_time,late_after_min,secret,timezone,list_id)
+    VALUES (?,?,?,?,?,?,?) RETURNING id`, [name, date, start_time, num(late_after_min) || 0, crypto.randomBytes(32).toString('hex'), validTz(timezone) || TZ, lid || null]);
   const id = r.rows[0].id;
-  if (register_all) await run(REG_ALL, [id]);
+  if (register_all || lid) await syncSession(id);
   res.json({ id });
 }));
 // Edit a session. Changing the start time or late window re-checks everyone's on-time / late status.
@@ -253,14 +348,18 @@ app.post('/api/events/:id/update', auth('trainer'), h(async (req, res) => {
   if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start_time)) return res.status(400).json({ error: 'Name, date and start time are required' });
   if (req.body?.timezone && !validTz(req.body.timezone)) return res.status(400).json({ error: 'Choose a time zone from the list' });
   const tz = validTz(req.body?.timezone) || tzOf(ev);
-  await run('UPDATE events SET name=?,date=?,start_time=?,late_after_min=?,timezone=? WHERE id=?', [name, date, start_time, late, tz, ev.id]);
+  const lid = req.body && 'list_id' in req.body ? await listIdOf(req.body.list_id) : num(ev.list_id) || 0;
+  if (lid === null) return res.status(400).json({ error: 'That student list no longer exists' });
+  await run('UPDATE events SET name=?,date=?,start_time=?,late_after_min=?,timezone=?,list_id=? WHERE id=?', [name, date, start_time, late, tz, lid || null, ev.id]);
+  // Switched to another student list: swap the class list over (students who already checked in stay)
+  const listSync = lid !== (num(ev.list_id) || 0) ? await syncSession(ev.id) : null;
   let changed = 0;
   for (const c of await all("SELECT id,ts,status FROM checkins WHERE event_id=? AND status IN ('present','late')", [ev.id])) {
     const status = toMin(localTime(new Date(c.ts), tz)) > toMin(start_time) + late ? 'late' : 'present';
     if (status !== c.status) { await run('UPDATE checkins SET status=? WHERE id=?', [status, c.id]); changed++; }
   }
   broadcast(ev.id, { type: 'refresh' });
-  res.json({ ok: true, changed });
+  res.json({ ok: true, changed, list: listSync });
 }));
 app.post('/api/events/:id/open', auth('trainer'), h(async (req, res) => {
   await run('UPDATE events SET checkin_open=? WHERE id=?', [req.body.open ? 1 : 0, req.params.id]);
@@ -268,9 +367,9 @@ app.post('/api/events/:id/open', auth('trainer'), h(async (req, res) => {
   res.json({ ok: true });
 }));
 app.post('/api/events/:id/register-all', auth('trainer'), h(async (req, res) => {
-  const r = await run(REG_ALL, [req.params.id]);
+  const r = await syncSession(num(req.params.id) || 0);   // re-sync with the session's student list
   broadcast(req.params.id, { type: 'refresh' });
-  res.json({ added: r.changes });
+  res.json(r);
 }));
 app.delete('/api/events/:id', auth('trainer'), h(async (req, res) => {
   await run('DELETE FROM events WHERE id=?', [req.params.id]);
@@ -295,13 +394,21 @@ app.post('/api/events/:id/reset-qr', auth('trainer'), h(async (req, res) => {
 app.get('/api/checkin/names', h(async (req, res) => {
   const ev = await get('SELECT * FROM events WHERE id=?', [num(req.query.e) || 0]);
   if (!ev || !tokenValid(ev, req.query.t)) return res.status(400).json({ error: 'This QR code is not valid. Scan the code shown by the trainer.' });
+  // Has this phone already checked someone in for this session? Then the page shows a locked screen, not the list.
+  const fp = /^[a-f0-9]{16,64}$/.test(String(req.query.fp || '')) ? String(req.query.fp) : null;
+  const done = await get(`SELECT u.name,c.status,c.ts FROM checkins c JOIN users u ON u.id=c.user_id
+    WHERE c.event_id=? AND (c.device_id=? OR (c.phone_fp IS NOT NULL AND c.phone_fp=? AND c.net=?)) ORDER BY c.ts LIMIT 1`,
+    [ev.id, req.deviceId, fp || '-', netKey(req.ip)]);
+  if (done) return res.json({ event: ev.name, date: ev.date, start_time: ev.start_time, late_after_min: num(ev.late_after_min || 0),
+    today: true, locked: true, mine: { name: done.name, status: done.status, time: localTime(new Date(done.ts), tzOf(ev)) }, names: [], ...tzInfo(ev) });
   const regCount = num((await get('SELECT CAST(COUNT(*) AS INTEGER) AS n FROM registrations WHERE event_id=?', [ev.id])).n);
   // Students registered for the event. If nobody is registered yet, show every active student.
   const names = await all(`SELECT u.id,u.username,u.name,
       CASE WHEN EXISTS(SELECT 1 FROM checkins c WHERE c.event_id=? AND c.user_id=u.id) THEN 1 ELSE 0 END AS checked_in
     FROM users u WHERE u.role='student' AND u.active=1
       AND (?=0 OR EXISTS(SELECT 1 FROM registrations r WHERE r.event_id=? AND r.user_id=u.id))
-    ORDER BY u.name`, [ev.id, regCount, ev.id]);
+      AND (?<>0 OR CAST(? AS INTEGER)=0 OR u.list_id=?)
+    ORDER BY u.name`, [ev.id, regCount, ev.id, regCount, num(ev.list_id) || 0, num(ev.list_id) || 0]);
   res.json({ event: ev.name, date: ev.date, start_time: ev.start_time, open: !!ev.checkin_open,
     today: ev.date === localDate(new Date(), tzOf(ev)), names, ...tzInfo(ev) });
 }));
@@ -326,7 +433,16 @@ app.post('/api/checkin', h(async (req, res) => {
   // One phone checks in one student per event
   const other = await get(`SELECT u.username,u.name FROM checkins c JOIN users u ON u.id=c.user_id
     WHERE c.event_id=? AND c.device_id=? AND c.user_id<>?`, [ev.id, req.deviceId, student.id]);
-  if (other) return reject(`Same phone as ${other.name} (${other.username})`, `This phone already checked in ${other.name}. Please approach SEMI staff.`, 403);
+  if (other) return reject(`Same phone as ${other.name} (${other.username})`, `This phone already checked in ${other.name}. Please see the trainer.`, 403);
+  // The cookie check above misses phones that forget cookies, e.g. the iPhone Code Scanner or private browsing.
+  // So also compare the phone's traits (model, screen, settings) on the same network.
+  const fp = /^[a-f0-9]{16,64}$/.test(String(req.body?.fp || '')) ? String(req.body.fp) : null, net = netKey(req.ip);
+  if (fp) {
+    const twin = await get(`SELECT u.username,u.name FROM checkins c JOIN users u ON u.id=c.user_id
+      WHERE c.event_id=? AND c.phone_fp=? AND c.net=? AND c.user_id<>?`, [ev.id, fp, net, student.id]);
+    if (twin) return reject(`Looks like the same phone as ${twin.name} (${twin.username})`,
+      'This phone seems to have already checked in someone else for this session. If this is your own phone, show this screen to the trainer and they will mark you present.', 403);
+  }
 
   let flagged = 0, flag_reason = null;
   if (!(await get('SELECT 1 AS x FROM registrations WHERE event_id=? AND user_id=?', [ev.id, student.id]))) {
@@ -334,9 +450,9 @@ app.post('/api/checkin', h(async (req, res) => {
     flagged = 1; flag_reason = 'Walk-in (not registered)';
   }
   const status = toMin(localTime(new Date(), tz)) > toMin(ev.start_time) + num(ev.late_after_min || 0) ? 'late' : 'present';
-  const ins = await run(`INSERT INTO checkins (event_id,user_id,ts,status,device_id,ip,user_agent,flagged,flag_reason)
-    VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`, [ev.id, student.id, ts, status, req.deviceId, req.ip,
-    String(req.get('user-agent') || '').slice(0, 200), flagged, flag_reason]);
+  const ins = await run(`INSERT INTO checkins (event_id,user_id,ts,status,device_id,ip,user_agent,flagged,flag_reason,phone_fp,net)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`, [ev.id, student.id, ts, status, req.deviceId, req.ip,
+    String(req.get('user-agent') || '').slice(0, 200), flagged, flag_reason, fp, net]);
   if (!ins.changes) return res.status(409).json({ error: `${student.name} is already checked in.` });  // double-tap
   broadcast(ev.id, { type: 'checkin' });
   res.json({ ok: true, status, name: student.name, event: ev.name, time: localTime(new Date(), tz), start_time: ev.start_time,
@@ -362,7 +478,8 @@ app.post('/api/events/:id/manual', auth('trainer'), h(async (req, res) => {
 
 // ---------- dashboard data ----------
 async function eventSummary(id) {
-  const ev = await get('SELECT id,name,date,start_time,late_after_min,checkin_open,timezone FROM events WHERE id=?', [num(id) || 0]);
+  const ev = await get(`SELECT e.id,e.name,e.date,e.start_time,e.late_after_min,e.checkin_open,e.timezone,e.list_id,l.name AS list_name
+    FROM events e LEFT JOIN lists l ON l.id=e.list_id WHERE e.id=?`, [num(id) || 0]);
   if (!ev) return null;
   Object.assign(ev, tzInfo(ev));
   const checkins = await all(`SELECT c.ts,c.status,c.flagged,c.flag_reason,u.id AS user_id,u.username,u.name,u.email
@@ -371,7 +488,7 @@ async function eventSummary(id) {
   const missing = await all(`SELECT u.id AS user_id,u.username,u.name,u.email FROM registrations r JOIN users u ON u.id=r.user_id
     WHERE r.event_id=? AND u.active=1 AND NOT EXISTS (SELECT 1 FROM checkins c WHERE c.event_id=r.event_id AND c.user_id=r.user_id)
     ORDER BY u.username`, [ev.id]);
-  const suspicious = await all(`SELECT s.ts,s.reason,s.ip,u.username,u.name FROM suspicious s LEFT JOIN users u ON u.id=s.user_id
+  const suspicious = await all(`SELECT s.ts,s.reason,s.ip,u.id AS user_id,u.username,u.name FROM suspicious s LEFT JOIN users u ON u.id=s.user_id
     WHERE s.event_id=? ORDER BY s.ts DESC LIMIT 100`, [ev.id]);
   const registered = num((await get(`SELECT CAST((${ON_LIST('?')}) AS INTEGER) AS n`, [ev.id])).n);
   const count = s => checkins.filter(c => c.status === s).length;

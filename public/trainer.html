@@ -256,7 +256,7 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
   </div>
   <div class="block" style="max-width:520px">
     <h2>Password</h2>
-    <p class="small muted">Change it before the first real session. Use at least 8 characters.</p>
+    <p class="small muted">Use at least 8 characters.</p>
     <label for="aOld">Current password</label><input id="aOld" type="password" autocomplete="current-password">
     <label for="aNew">New password</label><input id="aNew" type="password" autocomplete="new-password">
     <button onclick="changePw()" style="margin-top:16px">Change password</button>
@@ -264,7 +264,7 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
   </div>
 
   <div class="block">
-    <h2>Trainer accounts</h2>
+    <h2>Staff accounts</h2>
     <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
     <h3 style="margin-top:22px">Add a trainer</h3>
@@ -618,7 +618,7 @@ async function changeName() {
     $('#who').textContent = r.name; $('#whoAv').textContent = initials(r.name); $('#nm').innerHTML = ''; toast('Name saved');
   } catch (e) { $('#nm').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
 }
-async function changePw() {
+async function Pw() {
   try { await api('/api/me/password', { body: { oldPassword: $('#aOld').value, newPassword: $('#aNew').value } });
     $('#am').innerHTML = ''; $('#aOld').value = $('#aNew').value = ''; toast('Password changed'); }
   catch (e) { $('#am').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }

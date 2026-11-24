@@ -108,7 +108,7 @@ function problem(title, text) {
 async function load() {
   const fp = await phonePrint();
   try { data = await api(`/api/checkin/names?e=${eventId}&t=${encodeURIComponent(token || '')}${fp ? '&fp=' + fp : ''}`); }
-  catch (e) { return problem("This QR code didn't work", 'Scan the code on the screen in class again. If it still fails, tell the trainer.'); }
+  catch (e) { return problem("This QR code didn't work", 'Scan the code on the screen in class again. If it still fails, please approach SEMI staff.'); }
   // This phone already checked in for this session: lock the page, no name list and nothing to change
   if (data.locked) return doneScreen({ ...data.mine, event: data.event, start_time: data.start_time, late_after_min: data.late_after_min,
     timezone: data.timezone, tz_offset: data.tz_offset }, true);
@@ -120,11 +120,11 @@ async function load() {
   $('#box').innerHTML = `
     <h1>${esc(data.event)}</h1>
     <p class="when">${fmtDate(data.date)}, starts ${esc(data.start_time)} ${esc(tzLabel(data.timezone, data.tz_offset))}</p>
-    ${data.open ? '' : '<p class="notice">Check-in opens when the trainer starts the session. Pick your name now and tap Check in once it opens.</p>'}
+    ${data.open ? '' : '<p class="notice">Check-in opens when the staff starts the session. Pick your name now and tap Check in once it opens.</p>'}
     <label for="find">Find your name</label>
     <div class="search">${ICONS.search}<input id="find" type="search" placeholder="Start typing your name" autocomplete="off" enterkeyhint="search"></div>
     <ul class="names card" id="names" role="radiogroup" aria-label="Class list"></ul>
-    <p class="help">Name not on the list? Tell the trainer and they will add you.</p>
+    <p class="help">Name not on the list? Tell the staff and they will add you.</p>
     <div class="bar"><div class="inner"><div id="m" aria-live="assertive"></div><button id="go"></button></div></div>`;
   $('#find').oninput = drawNames;
   $('#go').onclick = checkIn;
@@ -139,7 +139,7 @@ function drawNames() {
       aria-checked="${String(n.id) === chosen}" ${n.checked_in ? 'disabled' : ''}>
       ${n.checked_in ? '<span class="av">✓</span>' : avatar(n.name)}<span>${esc(n.name)}</span>${n.checked_in ? '<span class="done-tag">Checked in</span>'
         : String(n.id) === chosen ? '<span class="tick"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' : `<span class="id">${esc(n.username)}</span>`}</button></li>`).join('')
-    : `<li class="empty">No name matches "${esc(f)}". Check the spelling or tell the trainer.</li>`;
+    : `<li class="empty">No name matches "${esc(f)}". Check the spelling or tell the staff.</li>`;
   $('#names').querySelectorAll('.name').forEach(b => b.onclick = () => { chosen = b.dataset.id; $('#m').innerHTML = ''; drawNames(); updateButton(); });
 }
 function updateButton() {
@@ -168,7 +168,7 @@ function doneScreen(r, locked) {
     <h1>${locked ? 'Already checked in' : "You're checked in"}</h1>
     <p class="who">${esc(r.name)}</p>
     <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}<br><span class="small">Session starts ${esc(r.start_time)} ${esc(tzLabel(r.timezone, r.tz_offset))}, late after ${r.late_after_min} min</span></p>
-    ${locked ? `<p class="lock-note">${ICONS.lock}<span>This phone has been used to check in for this session, so it can't be changed or used again. Picked the wrong name, or this isn't you? Show this screen to the trainer.</span></p>`
+    ${locked ? `<p class="lock-note">${ICONS.lock}<span>This phone has been used to check in for this session, so it can't be changed or used again. Picked the wrong name, or this isn't you? Show this screen to the staff.</span></p>`
       : '<p class="help">You can close this page now.</p>'}</div>`;
 }
 load();

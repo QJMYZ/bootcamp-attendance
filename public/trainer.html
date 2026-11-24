@@ -244,7 +244,7 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
 
 <!-- ACCOUNT -->
 <section id="tab-account" class="hidden">
-  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other trainers.</p>
+  <h1>Account</h1><p class="sub">Your own name and password, and the sign-ins for other SEMI Staffs.</p>
   <div class="block" style="max-width:520px">
     <h2>Appearance</h2>
     <p class="small muted">Light or dark mode for this device. Students' phones follow their own phone setting.</p>
@@ -269,15 +269,15 @@ td.pick input,th.pick input{width:18px;height:18px;margin:0;accent-color:var(--g
   </div>
 
   <div class="block">
-    <h2>Trainer accounts</h2>
-    <p class="small muted">Each trainer signs in with their own username and password. Every trainer can see and run all sessions.</p>
+    <h2>Staffs accounts</h2>
+    <p class="small muted">Each staff signs in with their own username and password. Every staff can see and run all sessions.</p>
     <div id="trList" style="margin-top:8px"></div>
-    <h3 style="margin-top:22px">Add a trainer</h3>
+    <h3 style="margin-top:22px">Add a Staff</h3>
     <form class="fields" onsubmit="event.preventDefault(); addTrainer()">
       <div><label for="tUser">Username</label><input id="tUser" placeholder="ms.tan" autocapitalize="none" autocomplete="off" required></div>
       <div style="flex-basis:200px"><label for="tName">Display name</label><input id="tName" placeholder="Ms Tan" required></div>
       <div><label for="tPass">Password</label><input id="tPass" type="password" autocomplete="new-password" placeholder="At least 8 characters" required></div>
-      <button><span data-ico="plus"></span>Add trainer</button>
+      <button><span data-ico="plus"></span>Add Staff</button>
     </form>
     <div id="tm"></div>
   </div>
@@ -414,7 +414,7 @@ async function drawLive() {
   // overview ring: how many are checked in, split by on time / late / marked
   drawRing($('#ring'), t, s.registered);
   $('#ringKey').innerHTML = [['var(--green)', 'On time', t.present], ['var(--amber)', 'Late', t.late],
-    ['var(--marked)', 'Marked by trainer', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
+    ['var(--marked)', 'Marked by staff', t.manual], ['var(--unused)', 'Not here yet', t.missing]]
     .map(([c, l, n]) => `<li><i style="background:${c}"></i>${l}<b>${n}</b></li>`).join('');
 
   $('#missN').textContent = t.missing;

@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F2F5F3">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="SEMI Attendance">
 <script>(function(){var t;try{t=localStorage.getItem('att_theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})();</script>
 <title>Check in | SEMI Bootcamp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,6 +49,8 @@ h1{font-size:26px;margin-bottom:4px}
 .done .die{width:96px;height:96px;margin:0 auto 22px;border-radius:18px;border:2px solid var(--green);position:relative;overflow:hidden}
 :root[data-theme="dark"] .done .die{box-shadow:0 0 28px rgba(91,194,80,.35)}
 .done .die::before{content:"";position:absolute;inset:0;background:var(--green);transform:translateY(100%);animation:fill .7s cubic-bezier(.2,.8,.2,1) forwards}
+.lock-note{display:flex;gap:10px;align-items:flex-start;text-align:left;margin:18px 0 0;padding:12px 14px;border-radius:12px;background:var(--avatar-bg);color:var(--ink-2);font-size:14px;line-height:1.45}
+.lock-note .ico{flex:none;width:18px;height:18px;margin-top:1px;color:var(--ink-3)}
 .done.late .die{border-color:var(--amber)} .done.late .die::before{background:var(--amber)}
 :root[data-theme="dark"] .done.late .die{box-shadow:0 0 28px rgba(242,169,43,.3)}
 .done .die svg{position:absolute;inset:0;margin:auto;width:46px;opacity:0;animation:show .25s .55s forwards;color:var(--primary-fg)}
@@ -63,6 +70,33 @@ h1{font-size:26px;margin-bottom:4px}
 <script>
 // The QR code opens this page with ?e=<event>&t=<event code>. The student picks their name and taps Check in.
 const q = new URLSearchParams(location.search), eventId = Number(q.get('e')), token = q.get('t');
+// A short code made from this phone's model and settings. It stays the same even when the browser forgets
+// its cookies (iPhone Code Scanner, private tabs), so one phone can't check in several names that way.
+// It is the same in Safari, Chrome and the scanner, so switching browsers doesn't get around it either.
+async function phonePrint() {
+  try {
+    const mm = q => matchMedia(q).matches ? 1 : 0;
+    const ua = navigator.userAgent, dev = (ua.match(/\(([^)]*)\)/) || [])[1] || ua;   // OS and model part only, not the browser
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;font:-apple-system-body';
+    probe.textContent = 'Mg'; document.body.appendChild(probe);
+    const textSize = probe.offsetHeight + '/' + getComputedStyle(probe).fontSize; probe.remove();   // iPhone text size setting
+    const c = document.createElement('canvas'); c.width = 220; c.height = 40; const x = c.getContext('2d');
+    x.textBaseline = 'top'; x.font = '16px Arial'; x.fillStyle = '#f60'; x.fillRect(100, 1, 62, 20);
+    x.fillStyle = '#069'; x.fillText('SEMI check-in 1.0 \u{1F44B}', 2, 15); x.fillStyle = 'rgba(102,204,0,.7)'; x.fillText('SEMI check-in 1.0', 4, 17);
+    let gpu = ''; try { const g = document.createElement('canvas').getContext('webgl'); const d = g.getExtension('WEBGL_debug_renderer_info'); gpu = d ? g.getParameter(d.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); } catch {}
+    const parts = [dev, screen.width + 'x' + screen.height, devicePixelRatio, screen.colorDepth, navigator.maxTouchPoints, navigator.hardwareConcurrency || '',
+      Intl.DateTimeFormat().resolvedOptions().timeZone, mm('(prefers-color-scheme: dark)'), mm('(prefers-reduced-motion: reduce)'),
+      mm('(inverted-colors: inverted)'), mm('(prefers-contrast: more)'), textSize, gpu, c.toDataURL()].join('|');
+    if (crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(parts));
+      return [...new Uint8Array(buf)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    let h1 = 0x811c9dc5, h2 = 0x1b873593;   // fallback hash on plain http
+    for (let i = 0; i < parts.length; i++) { const k = parts.charCodeAt(i); h1 = Math.imul(h1 ^ k, 16777619); h2 = Math.imul(h2 ^ k, 2246822507); }
+    return ((h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0'));
+  } catch { return undefined; }
+}
 const KEY = 'att_last_student';            // remembers the name chosen on this phone for next time
 const remembered = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
 const remember = id => { try { localStorage.setItem(KEY, id); } catch {} };
@@ -72,8 +106,12 @@ function problem(title, text) {
   $('#box').innerHTML = `<div class="card problem"><h1>${esc(title)}</h1><p class="when" style="margin:6px 0 0">${esc(text)}</p></div>`;
 }
 async function load() {
-  try { data = await api(`/api/checkin/names?e=${eventId}&t=${encodeURIComponent(token || '')}`); }
-  catch (e) { return problem("This QR code didn't work", 'Scan the code again.'); }
+  const fp = await phonePrint();
+  try { data = await api(`/api/checkin/names?e=${eventId}&t=${encodeURIComponent(token || '')}${fp ? '&fp=' + fp : ''}`); }
+  catch (e) { return problem("This QR code didn't work", 'Scan the code on the screen in class again. If it still fails, tell the trainer.'); }
+  // This phone already checked in for this session: lock the page, no name list and nothing to change
+  if (data.locked) return doneScreen({ ...data.mine, event: data.event, start_time: data.start_time, late_after_min: data.late_after_min,
+    timezone: data.timezone, tz_offset: data.tz_offset }, true);
   if (!data.today) return problem(data.event, `This session is on ${fmtDate(data.date)}. Scan the QR code on the day.`);
   const last = remembered();
   if (last && data.names.some(n => String(n.id) === last && !n.checked_in)) chosen = last;
@@ -86,15 +124,17 @@ async function load() {
     <label for="find">Find your name</label>
     <div class="search">${ICONS.search}<input id="find" type="search" placeholder="Start typing your name" autocomplete="off" enterkeyhint="search"></div>
     <ul class="names card" id="names" role="radiogroup" aria-label="Class list"></ul>
-    <p class="help">Name not on the list? Please inform SEMI staff.</p>
+    <p class="help">Name not on the list? Tell the trainer and they will add you.</p>
     <div class="bar"><div class="inner"><div id="m" aria-live="assertive"></div><button id="go"></button></div></div>`;
   $('#find').oninput = drawNames;
   $('#go').onclick = checkIn;
   drawNames(); updateButton();
 }
 function drawNames() {
-  const f = $('#find').value.trim().toLowerCase();
-  const list = data.names.filter(n => !f || n.name.toLowerCase().includes(f) || n.username.toLowerCase().includes(f));
+  // accents don't matter: "dung" finds "Dũng", "duc" finds "Đức"
+  const plain = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const f = plain($('#find').value.trim());
+  const list = data.names.filter(n => !f || plain(n.name).includes(f) || plain(n.username).includes(f));
   $('#names').innerHTML = list.length ? list.map(n => `<li><button class="name" role="radio" data-id="${n.id}"
       aria-checked="${String(n.id) === chosen}" ${n.checked_in ? 'disabled' : ''}>
       ${n.checked_in ? '<span class="av">✓</span>' : avatar(n.name)}<span>${esc(n.name)}</span>${n.checked_in ? '<span class="done-tag">Checked in</span>'
@@ -110,20 +150,26 @@ function updateButton() {
 async function checkIn() {
   $('#go').disabled = true; $('#go').textContent = 'Checking in...';
   try {
-    const r = await api('/api/checkin', { body: { eventId, token, studentId: Number(chosen) } });
+    const r = await api('/api/checkin', { body: { eventId, token, studentId: Number(chosen), fp: await phonePrint() } });
     remember(chosen);
-    const late = r.status === 'late';
-    $('#box').innerHTML = `<div class="card done ${late ? 'late' : ''}">
-      <div class="die"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-      <h1>You're checked in</h1>
-      <p class="who">${esc(r.name)}</p>
-      <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}<br><span class="small">Session starts ${esc(r.start_time)} ${esc(tzLabel(r.timezone, r.tz_offset))}, late after ${r.late_after_min} min</span></p>
-      <p class="help">You can close this page now.</p></div>`;
+    doneScreen(r, false);
   } catch (e) {
+    if (e.status === 403) return load();   // this phone was already used: switch to the locked screen
     $('#m').innerHTML = `<div class="msg err" style="margin:0 0 10px">${esc(e.message)}</div>`;
     updateButton();
     if (e.status === 409) { data.names.forEach(n => { if (String(n.id) === chosen) n.checked_in = 1; }); chosen = null; drawNames(); updateButton(); }
   }
+}
+// Success screen. "locked" = opened again after checking in, so the student can't pick another name.
+function doneScreen(r, locked) {
+  const late = r.status === 'late';
+  $('#box').innerHTML = `<div class="card done ${late ? 'late' : ''} ${locked ? 'locked' : ''}">
+    <div class="die"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h1>${locked ? 'Already checked in' : "You're checked in"}</h1>
+    <p class="who">${esc(r.name)}</p>
+    <p class="meta">${esc(r.event)}<br>${late ? `Arrived late at ${esc(r.time)}` : `On time at ${esc(r.time)}`}<br><span class="small">Session starts ${esc(r.start_time)} ${esc(tzLabel(r.timezone, r.tz_offset))}, late after ${r.late_after_min} min</span></p>
+    ${locked ? `<p class="lock-note">${ICONS.lock}<span>This phone has been used to check in for this session, so it can't be changed or used again. Picked the wrong name, or this isn't you? Show this screen to the trainer.</span></p>`
+      : '<p class="help">You can close this page now.</p>'}</div>`;
 }
 load();
 </script>

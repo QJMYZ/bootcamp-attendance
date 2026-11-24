@@ -2,6 +2,11 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scan to check in | SEMI Bootcamp</title>
 <meta name="theme-color" content="#F2F5F3">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="SEMI Attendance">
 <script>(function(){var t;try{t=localStorage.getItem('att_theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -45,7 +50,7 @@ body{min-height:100vh;display:flex}
     <h1 id="title">Loading...</h1>
     <p class="when" id="when"></p>
     <ol class="steps">
-      <li>Scan QR Code</li>
+      <li>Open your phone camera and scan the code</li>
       <li>Find your name and tap Check in</li>
     </ol>
     <div class="tally card"><div class="wafer" id="wafer"></div><div><b id="cnt">0</b><span id="cntl">checked in</span></div></div>

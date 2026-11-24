@@ -77,6 +77,6 @@ async function refresh() {
     drawWafer($('#wafer'), dies);
   } catch (e) { $('#when').textContent = e.message; }
 }
-requireLogin('trainer').then(me => { if (me) { refresh(); setInterval(refresh, 5000); } });
+requireLogin('SEMI Staff').then(me => { if (me) { refresh(); setInterval(refresh, 5000); } });
 </script>
 </body></html>

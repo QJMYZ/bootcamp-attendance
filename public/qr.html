@@ -36,9 +36,10 @@ body{min-height:100vh;display:flex}
 .tally b{display:block;font:800 clamp(40px,5vw,80px)/1 var(--display);letter-spacing:-.03em}
 .tally span{font-size:clamp(15px,1.4vw,22px);color:var(--ink-2)}
 .tools{position:fixed;right:16px;bottom:14px;display:flex;gap:8px}
-@media(max-width:760px){.stage{grid-template-columns:1fr;gap:28px}.qr{width:100%}}
+.back{position:fixed;left:16px;top:14px;z-index:5}
+@media(max-width:760px){.stage{grid-template-columns:1fr;gap:28px;padding-top:64px}.qr{width:100%}}
 @media print{
-  .tools,.tally{display:none}
+  .tools,.tally,.back{display:none}
   .stage{grid-template-columns:1fr;text-align:center;gap:24px}
   .qr{width:14cm;margin:0 auto}
   .info .logo{margin:0 auto 24px}
@@ -46,6 +47,7 @@ body{min-height:100vh;display:flex}
 }
 </style></head>
 <body>
+<button class="btn-quiet back" onclick="goBack()">&larr; Back to dashboard</button>
 <div class="stage">
   <div class="qr" id="qrBox">
     <img id="img" alt="Check-in QR code">
@@ -74,6 +76,15 @@ body{min-height:100vh;display:flex}
 const id = new URLSearchParams(location.search).get('e');
 const showDate = d => (typeof fmtDate === 'function' ? fmtDate(d) : d);
 let lastUrl = '', busy = false;
+
+// Back button: Show QR opens in a new tab, so close this tab to return to the
+// dashboard that's still open. If the browser won't close it (e.g. the page was
+// opened from a bookmark), go to the dashboard in this tab instead.
+function goBack() {
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  window.close();
+  setTimeout(() => { location.href = '/trainer.html'; }, 300);
+}
 
 async function refresh() {
   if (busy) return;          // skip if the last request hasn't come back yet (slow server wake-up)

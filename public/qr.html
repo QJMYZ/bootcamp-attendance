@@ -2,12 +2,12 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scan to check in | SEMI Bootcamp</title>
 <meta name="theme-color" content="#F2F5F3">
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.webmanifest">
-<meta name="apple-mobile-web-app-title" content="SEMI Attendance">
 <script>(function(){var t;try{t=localStorage.getItem('att_theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})();</script>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="SEMI Attendance">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -18,10 +18,14 @@ body{min-height:100vh;display:flex}
 .qr{position:relative;width:min(70vh,46vw);aspect-ratio:1;border:1px solid var(--line);border-radius:26px;padding:2.4vh;background:#fff;box-shadow:0 12px 40px rgba(0,0,0,.08)}
 :root[data-theme="dark"] .qr{box-shadow:0 0 0 1px #2A343C,0 0 60px rgba(91,194,80,.18)}
 .qr img{width:100%;height:100%;display:block;image-rendering:pixelated;transition:opacity .3s}
+.qr img:not([src]){visibility:hidden}
 .qr .closed{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:12%;
   font:700 clamp(20px,2.6vw,34px)/1.2 var(--display);color:#1E2328}
 .qr.is-closed img{opacity:.08}
 .qr.is-closed .closed{display:flex}
+.qr .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:12%;
+  font:600 clamp(16px,1.6vw,22px)/1.3 var(--display);color:#5B6670}
+.qr.has-code .loading{display:none}
 .info .logo{width:clamp(120px,12vw,190px);margin-bottom:5vh}
 .info h1{font-size:clamp(30px,4.2vw,64px);font-weight:800;letter-spacing:-.02em;margin-bottom:1.2vh}
 .info .when{font-size:clamp(16px,1.6vw,24px);color:var(--ink-2);margin-bottom:4vh}
@@ -34,7 +38,6 @@ body{min-height:100vh;display:flex}
 .tools{position:fixed;right:16px;bottom:14px;display:flex;gap:8px}
 @media(max-width:760px){.stage{grid-template-columns:1fr;gap:28px}.qr{width:100%}}
 @media print{
-  :root{--bg:#fff} body{background:#fff}
   .tools,.tally{display:none}
   .stage{grid-template-columns:1fr;text-align:center;gap:24px}
   .qr{width:14cm;margin:0 auto}
@@ -44,7 +47,11 @@ body{min-height:100vh;display:flex}
 </style></head>
 <body>
 <div class="stage">
-  <div class="qr" id="qrBox"><img id="img" alt="Check-in QR code"><div class="closed">Check-in opens soon</div></div>
+  <div class="qr" id="qrBox">
+    <img id="img" alt="Check-in QR code">
+    <div class="loading" id="loading">Loading QR code...</div>
+    <div class="closed">Check-in opens soon</div>
+  </div>
   <div class="info">
     <img class="logo only-light" src="semi-logo.png" alt="SEMI"><img class="logo only-dark" src="semi-logo-white.png" alt="SEMI">
     <h1 id="title">Loading...</h1>
@@ -56,27 +63,53 @@ body{min-height:100vh;display:flex}
     <div class="tally card"><div class="wafer" id="wafer"></div><div><b id="cnt">0</b><span id="cntl">checked in</span></div></div>
   </div>
 </div>
-<div class="tools"><button class="icon-btn" data-theme-icon onclick="toggleTheme()" aria-label="Switch light or dark mode"></button><button class="btn-quiet" onclick="print()"><span data-ico="print"></span>Print</button><button class="btn-quiet" onclick="document.documentElement.requestFullscreen?.()"><span data-ico="full"></span>Full screen</button></div>
+<div class="tools">
+  <button class="icon-btn" data-theme-icon onclick="toggleTheme()" aria-label="Switch light or dark mode"></button>
+  <button class="btn-quiet" onclick="print()"><span data-ico="print"></span>Print</button>
+  <button class="btn-quiet" onclick="document.documentElement.requestFullscreen?.()">Full screen</button>
+</div>
 <script src="common.js"></script>
 <script>
-// Fixed QR for the session. Rechecks every 5 s so the count, "closed" state and any Reset QR show up.
+// Projector view. The QR loads first and on its own, so it still shows if the live count fails.
 const id = new URLSearchParams(location.search).get('e');
-document.querySelectorAll('[data-ico]').forEach(el => { el.outerHTML = ICONS[el.dataset.ico]; });
-let lastUrl = '';
+const showDate = d => (typeof fmtDate === 'function' ? fmtDate(d) : d);
+let lastUrl = '', busy = false;
+
 async function refresh() {
+  if (busy) return;          // skip if the last request hasn't come back yet (slow server wake-up)
+  busy = true;
   try {
-    const [r, s] = await Promise.all([api(`/api/events/${id}/qr`), api(`/api/events/${id}/summary`)]);
-    $('#title').textContent = r.name;
-    $('#when').textContent = `${fmtDate(r.date)}, starts ${s.event.start_time} ${tzLabel(r.timezone, r.tz_offset)}`;
-    if (r.url !== lastUrl) { $('#img').src = r.dataUrl; lastUrl = r.url; }
-    $('#qrBox').classList.toggle('is-closed', !r.open);
-    $('#cnt').textContent = `${s.totals.checked_in} of ${s.registered}`;
-    $('#cntl').textContent = 'checked in';
-    const dies = [...s.checkins.map(c => ({ u: c.username, state: c.status })), ...s.missing.map(m => ({ u: m.username, state: 'missing' }))]
-      .sort((a, b) => a.u.localeCompare(b.u, undefined, { numeric: true })).map(d => ({ state: d.state, title: '' }));
-    drawWafer($('#wafer'), dies);
-  } catch (e) { $('#when').textContent = e.message; }
+    // 1. The QR code
+    try {
+      const r = await api(`/api/events/${id}/qr`);
+      if (r.url !== lastUrl) { $('#img').src = r.dataUrl; lastUrl = r.url; }
+      $('#qrBox').classList.add('has-code');
+      $('#qrBox').classList.toggle('is-closed', !r.open);
+      $('#title').textContent = r.name;
+      if (!$('#when').textContent) $('#when').textContent = showDate(r.date);
+    } catch (e) {
+      $('#loading').textContent = 'Could not load QR: ' + e.message;
+      return;
+    }
+    // 2. Live count and wafer map (optional, the QR stays on screen if this fails)
+    try {
+      const s = await api(`/api/events/${id}/summary`);
+      $('#when').textContent = `${showDate(s.event.date)}, starts ${s.event.start_time}`;
+      $('#cnt').textContent = `${s.totals.checked_in} of ${s.registered}`;
+      $('#cntl').textContent = 'checked in';
+      const dies = [...s.checkins.map(c => ({ u: c.username, state: c.status })),
+                    ...s.missing.map(m => ({ u: m.username, state: 'missing' }))]
+        .sort((a, b) => String(a.u).localeCompare(String(b.u), undefined, { numeric: true }))
+        .map(d => ({ state: d.state, title: '' }));
+      if (typeof drawWafer === 'function') drawWafer($('#wafer'), dies);
+    } catch (e) {
+      console.warn('Live count failed:', e);
+    }
+  } finally {
+    busy = false;
+  }
 }
-requireLogin('SEMI Staff').then(me => { if (me) { refresh(); setInterval(refresh, 5000); } });
+
+requireLogin('trainer').then(me => { if (me) { refresh(); setInterval(refresh, 5000); } });
 </script>
 </body></html>
